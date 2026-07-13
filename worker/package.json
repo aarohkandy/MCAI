@@ -1,0 +1,30 @@
+{
+  "name": "@mcai/rollout-worker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mineflayer rollout workers for the MCAI 1.12.2 combat environment",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/src/index.js",
+    "test": "vitest run test",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@msgpack/msgpack": "^3.1.2",
+    "mineflayer": "^4.32.0",
+    "vec3": "^0.1.10",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.15"
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mc-bot.local/schema/messages-v1.schema.json",
+  "title": "WireMessageV1",
+  "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/stepBatch" },
+    { "$ref": "#/$defs/actionBatch" },
+    { "$ref": "#/$defs/control" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "base": {
+      "type": "object",
+      "required": ["schema_version", "type", "sequence"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "type": { "type": "string" },
+        "sequence": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "hello": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["worker_id", "agents", "capabilities"],
+          "properties": {
+            "type": { "const": "hello" },
+            "worker_id": { "type": "string" },
+            "agents": { "type": "array", "items": { "type": "string" } },
+            "capabilities": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      ]
+    },
+    "stepBatch": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["policy_version", "steps"],
+          "properties": {
+            "type": { "const": "step_batch" },
+            "policy_version": { "type": "integer", "minimum": 0 },
+            "steps": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["agent_id", "observation", "reward", "terminated", "truncated", "info"],
+                "properties": {
+                  "agent_id": { "type": "string" },
+                  "observation": { "$ref": "observation-v1.schema.json" },
+                  "reward": { "type": "number" },
+                  "terminated": { "type": "boolean" },
+                  "truncated": { "type": "boolean" },
+                  "info": { "type": "object" }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "actionBatch": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["policy_version", "actions"],
+          "properties": {
+            "type": { "const": "action_batch" },
+            "policy_version": { "type": "integer", "minimum": 0 },
+            "actions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["agent_id", "action"],
+                "properties": {
+                  "agent_id": { "type": "string" },
+                  "action": { "$ref": "action-v1.schema.json" }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "control": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["command", "payload"],
+          "properties": {
+            "type": { "const": "control" },
+            "command": { "type": "string" },
+            "payload": { "type": "object" }
+          }
+        }
+      ]
+    },
+    "error": {
+      "allOf": [
+        { "$ref": "#/$defs/base" },
+        {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "type": { "const": "error" },
+            "code": { "type": "string" },
+            "message": { "type": "string" }
+          }
+        }
+      ]
+    }
+  }
+}

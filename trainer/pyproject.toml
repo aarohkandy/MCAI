@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcai-trainer"
+version = "0.1.0"
+description = "Recurrent PPO trainer and inference service for MCAI"
+requires-python = ">=3.9"
+dependencies = [
+  "msgpack>=1.0.8,<2",
+  "numpy>=1.26,<3",
+  "torch>=2.4,<2.8",
+  "websockets>=12,<16",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<9", "pytest-asyncio>=0.23,<1"]
+export = ["onnx>=1.16,<2", "onnxruntime>=1.18,<2"]
+
+[project.scripts]
+mcai-trainer = "combat_ai.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["combat_ai*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

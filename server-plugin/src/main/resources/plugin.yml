@@ -1,0 +1,24 @@
+name: MCAIArena
+main: dev.mcbot.arena.MCAIPlugin
+version: 0.1.0
+description: Deterministic private combat arenas and localhost rollout control for MCAI.
+author: MCAI
+load: POSTWORLD
+commands:
+  aiwatch:
+    description: Watch an arena from fighter POV or orbit mode.
+    usage: /aiwatch <arena> <pov|orbit>
+    permission: mcai.spectate
+  ainext:
+    description: Cycle to the next active arena.
+    usage: /ainext
+    permission: mcai.spectate
+  aistop:
+    description: Stop all matches and disconnect AI accounts.
+    usage: /aistop
+    permission: mcai.admin
+permissions:
+  mcai.spectate:
+    default: op
+  mcai.admin:
+    default: op

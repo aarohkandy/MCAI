@@ -1,0 +1,10 @@
+{
+  "name": "@mcai/eagler-adapter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check flat-policy.js && node --check coordinate-contract.js && node --check mcai.mod.js && node test/coordinate-contract.mjs",
+    "build": "node build.mjs"
+  }
+}

@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mc-bot.local/schema/observation-v1.schema.json",
+  "title": "ObservationV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "match", "self", "opponent", "entities", "blocks", "action_mask"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "match": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["episode_id", "tick", "policy_version", "arena_seed", "action_delay_ticks", "observation_delay_ticks"],
+      "properties": {
+        "episode_id": { "type": "string" },
+        "tick": { "type": "integer", "minimum": 0 },
+        "policy_version": { "type": "integer", "minimum": 0 },
+        "arena_seed": { "type": "integer" },
+        "action_delay_ticks": { "type": "integer", "minimum": 0 },
+        "observation_delay_ticks": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "self": { "$ref": "#/$defs/selfState" },
+    "opponent": {
+      "oneOf": [
+        { "type": "null" },
+        { "$ref": "#/$defs/opponentState" }
+      ]
+    },
+    "entities": {
+      "type": "array",
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/entitySlot" }
+    },
+    "blocks": {
+      "type": "array",
+      "maxItems": 48,
+      "items": { "$ref": "#/$defs/blockSlot" }
+    },
+    "action_mask": { "$ref": "#/$defs/actionMask" }
+  },
+  "$defs": {
+    "vec3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" }
+      }
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "count", "durability", "max_durability", "enchant_hash"],
+      "properties": {
+        "name": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "durability": { "type": "number", "minimum": 0 },
+        "max_durability": { "type": "number", "minimum": 0 },
+        "enchant_hash": { "type": "integer" }
+      }
+    },
+    "armor": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/item" }
+    },
+    "selfState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "health", "absorption", "food", "position", "velocity", "yaw", "pitch",
+        "on_ground", "sprinting", "sneaking", "hurt_time", "attack_cooldown",
+        "active_hand", "use_ticks", "mining_progress", "selected_hotbar", "hotbar",
+        "offhand", "armor", "raycast"
+      ],
+      "properties": {
+        "health": { "type": "number" },
+        "absorption": { "type": "number" },
+        "food": { "type": "number" },
+        "position": { "$ref": "#/$defs/vec3" },
+        "velocity": { "$ref": "#/$defs/vec3" },
+        "yaw": { "type": "number" },
+        "pitch": { "type": "number" },
+        "on_ground": { "type": "boolean" },
+        "sprinting": { "type": "boolean" },
+        "sneaking": { "type": "boolean" },
+        "hurt_time": { "type": "number" },
+        "attack_cooldown": { "type": "number", "minimum": 0, "maximum": 1 },
+        "active_hand": { "type": "string", "enum": ["none", "main", "off"] },
+        "use_ticks": { "type": "integer", "minimum": 0 },
+        "mining_progress": { "type": "number", "minimum": 0, "maximum": 1 },
+        "selected_hotbar": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "hotbar": { "type": "array", "minItems": 9, "maxItems": 9, "items": { "$ref": "#/$defs/item" } },
+        "offhand": { "$ref": "#/$defs/item" },
+        "armor": { "$ref": "#/$defs/armor" },
+        "raycast": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "distance", "block_name", "entity_kind"],
+          "properties": {
+            "kind": { "type": "string", "enum": ["none", "block", "entity"] },
+            "distance": { "type": "number", "minimum": 0 },
+            "block_name": { "type": "string" },
+            "entity_kind": { "type": "string" }
+          }
+        }
+      }
+    },
+    "opponentState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relative_position", "relative_velocity", "yaw", "pitch", "health", "hurt_time",
+        "on_ground", "line_of_sight", "mainhand", "offhand", "armor"
+      ],
+      "properties": {
+        "relative_position": { "$ref": "#/$defs/vec3" },
+        "relative_velocity": { "$ref": "#/$defs/vec3" },
+        "yaw": { "type": "number" },
+        "pitch": { "type": "number" },
+        "health": { "type": ["number", "null"] },
+        "hurt_time": { "type": "number" },
+        "on_ground": { "type": "boolean" },
+        "line_of_sight": { "type": "boolean" },
+        "mainhand": { "$ref": "#/$defs/item" },
+        "offhand": { "$ref": "#/$defs/item" },
+        "armor": { "$ref": "#/$defs/armor" }
+      }
+    },
+    "entitySlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "relative_position", "relative_velocity", "age_ticks", "distance", "raycastable"],
+      "properties": {
+        "kind": { "type": "string" },
+        "relative_position": { "$ref": "#/$defs/vec3" },
+        "relative_velocity": { "$ref": "#/$defs/vec3" },
+        "age_ticks": { "type": "integer", "minimum": 0 },
+        "distance": { "type": "number", "minimum": 0 },
+        "raycastable": { "type": "boolean" }
+      }
+    },
+    "blockSlot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name", "relative_position", "collision", "hardness", "replaceable",
+        "break_progress", "crystal_clearance", "exposed_faces", "distance",
+        "within_reach", "raycastable", "sample_age_ticks"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "relative_position": { "$ref": "#/$defs/vec3" },
+        "collision": { "type": "string", "enum": ["empty", "solid", "liquid", "partial"] },
+        "hardness": { "type": "number" },
+        "replaceable": { "type": "boolean" },
+        "break_progress": { "type": "number", "minimum": 0, "maximum": 1 },
+        "crystal_clearance": { "type": "boolean" },
+        "exposed_faces": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "distance": { "type": "number", "minimum": 0 },
+        "within_reach": { "type": "boolean" },
+        "raycastable": { "type": "boolean" },
+        "sample_age_ticks": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "actionMask": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attack", "use_main", "use_offhand", "release_use", "swap_offhand", "hotbar"],
+      "properties": {
+        "attack": { "type": "boolean" },
+        "use_main": { "type": "boolean" },
+        "use_offhand": { "type": "boolean" },
+        "release_use": { "type": "boolean" },
+        "swap_offhand": { "type": "boolean" },
+        "hotbar": { "type": "array", "minItems": 10, "maxItems": 10, "items": { "type": "boolean" } }
+      }
+    }
+  }
+}

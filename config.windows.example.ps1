@@ -1,0 +1,18 @@
+$env:MCAI_RUNTIME = "$PSScriptRoot\server-runtime"
+$env:MCAI_BIND_ADDRESS = "127.0.0.1"
+$env:MCAI_ACCEPT_EULA = "false"
+$env:MCAI_BOT_COUNT = "4"
+$env:MCAI_JAVA_MEMORY = "2G"
+$env:MCAI_TORCH_THREADS = "0"
+$env:MCAI_WORKER_ID = "surface5-rollout"
+$env:MCAI_SERVER_HOST = "127.0.0.1"
+$env:MCAI_SERVER_PORT = "25565"
+$env:MCAI_ARENA_HOST = "127.0.0.1"
+$env:MCAI_ARENA_PORT = "8765"
+$env:MCAI_TRAINER_URL = "ws://127.0.0.1:8766"
+$env:MCAI_USERNAME_PREFIX = "MCAI_"
+# After behavior cloning, these may point to real files:
+# $env:MCAI_IMITATION_DATA = "$PSScriptRoot\demonstrations\sword.jsonl"
+# $env:MCAI_INITIALIZE_FROM = "$PSScriptRoot\checkpoints\imitation.pt"
+# When league.json requests an exploiter, temporarily set this to a frozen main checkpoint:
+# $env:MCAI_EXPLOITER_TARGET = "$PSScriptRoot\checkpoints\policy-000005000000.pt"

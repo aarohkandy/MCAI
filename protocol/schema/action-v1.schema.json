@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mc-bot.local/schema/action-v1.schema.json",
+  "title": "ActionV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "forward", "strafe", "jump", "sprint", "sneak",
+    "yaw_delta", "pitch_delta", "primary", "release_use", "hotbar",
+    "swap_offhand"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "forward": { "type": "integer", "enum": [-1, 0, 1] },
+    "strafe": { "type": "integer", "enum": [-1, 0, 1] },
+    "jump": { "type": "boolean" },
+    "sprint": { "type": "boolean" },
+    "sneak": { "type": "boolean" },
+    "yaw_delta": { "type": "number", "minimum": -3.141593, "maximum": 3.141593 },
+    "pitch_delta": { "type": "number", "minimum": -1.570797, "maximum": 1.570797 },
+    "primary": { "type": "string", "enum": ["none", "attack", "use_main", "use_offhand"] },
+    "release_use": { "type": "boolean" },
+    "hotbar": { "type": "integer", "minimum": -1, "maximum": 8 },
+    "swap_offhand": { "type": "boolean" }
+  }
+}
