@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>MCAI Live Training</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p class="eyebrow">EAGLERCRAFT 1.12.2 SELF-PLAY</p>
+        <h1>MCAI Live Training</h1>
+      </div>
+      <div class="connection"><span id="connection-dot" class="dot"></span><span id="connection-text">Starting…</span></div>
+    </header>
+
+    <section class="stats" aria-label="Training status">
+      <article><span>Policy</span><strong id="policy">v0</strong><small id="phase">starting</small></article>
+      <article><span>Agent ticks</span><strong id="ticks">0</strong><small id="device">CPU</small></article>
+      <article><span>Server</span><strong id="tps">— TPS</strong><small id="tick-time">waiting for Paper</small></article>
+      <article><span>Surface memory</span><strong id="memory">—</strong><small id="pairs">0 active pairs</small></article>
+    </section>
+
+    <section class="progress-section" aria-labelledby="progress-label">
+      <div class="progress-label"><span id="progress-label">Next PPO update</span><strong id="progress-value">0 / 8,192</strong></div>
+      <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
+    </section>
+
+    <section class="workspace">
+      <div class="arena-panel">
+        <div class="panel-head">
+          <div><h2 id="arena-title">Waiting for fighters</h2><p id="arena-subtitle">The first arena appears after the bots join.</p></div>
+          <label>Arena <select id="arena-select" aria-label="Arena to watch"></select></label>
+        </div>
+        <canvas id="arena-canvas" aria-label="Animated top-down view of the selected Minecraft combat arena"></canvas>
+        <div id="fighters" class="fighters" aria-live="polite"></div>
+      </div>
+
+      <aside>
+        <section>
+          <h2>Latest PPO update</h2>
+          <dl class="metrics">
+            <div><dt>Policy loss</dt><dd id="policy-loss">—</dd></div>
+            <div><dt>Value loss</dt><dd id="value-loss">—</dd></div>
+            <div><dt>Entropy</dt><dd id="entropy">—</dd></div>
+            <div><dt>Approx. KL</dt><dd id="kl">—</dd></div>
+          </dl>
+        </section>
+        <section>
+          <h2>Safety</h2>
+          <p>The server, trainer, and dashboard are bound to this computer only.</p>
+          <div class="actions">
+            <button id="pause" class="danger" type="button">Emergency stop fights</button>
+            <button id="resume" type="button">Resume fights</button>
+          </div>
+          <p id="command-result" class="command-result" aria-live="polite"></p>
+        </section>
+        <section>
+          <h2>What you’re seeing</h2>
+          <p>Circles are policies controlling normal Minecraft inputs. Arrows show camera direction; bars show health. Diamonds are end crystals.</p>
+        </section>
+      </aside>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

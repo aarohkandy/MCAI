@@ -29,6 +29,7 @@ eagler-mod/build/
 *.onnx
 *.weights.bin
 *.html
+!dashboard/public/*.html
 *.log
 *.jar
 !server-plugin/.mvn/wrapper/maven-wrapper.jar
