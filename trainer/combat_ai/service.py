@@ -69,6 +69,8 @@ class PolicyService:
         self.league = LeagueManager(service_config.checkpoint_dir, self.device)
         self.league.force_frozen_opponent(exploiter_target)
         self.imitation_records = []
+        self.progress_interval = max(128, ppo_config.rollout_agent_ticks // 32)
+        self.next_progress_tick = self.progress_interval
         if imitation_data is not None:
             self.imitation_records = split_matches(load_demonstrations(imitation_data))[0]
 
@@ -179,6 +181,12 @@ class PolicyService:
             reward=float(step.get("reward", 0.0)), done=done,
             next_value=0.0 if done else bootstrap_value,
         ))
+        if len(self.buffer) >= self.next_progress_tick and not self.buffer.ready:
+            print(json.dumps({"event": "rollout_progress", "policy_version": self.state.policy_version,
+                              "collected_agent_ticks": len(self.buffer),
+                              "target_agent_ticks": self.config.rollout_agent_ticks,
+                              "total_agent_ticks": self.state.total_agent_ticks}), flush=True)
+            self.next_progress_tick += self.progress_interval
         if done:
             info = step.get("info") if isinstance(step.get("info"), dict) else {}
             self.league.record_result(
@@ -189,6 +197,10 @@ class PolicyService:
         transitions = self.buffer.drain(self.state.policy_version)
         if not transitions:
             return
+        self.next_progress_tick = self.progress_interval
+        print(json.dumps({"event": "ppo_training_started", "policy_version": self.state.policy_version,
+                          "batch_agent_ticks": len(transitions),
+                          "total_agent_ticks": self.state.total_agent_ticks}), flush=True)
         self.policy.train()
         batch = prepare_sequences(
             transitions, self.config.recurrent_sequence_length, self.config.gamma,

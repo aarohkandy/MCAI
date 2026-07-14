@@ -24,6 +24,7 @@ worker/coverage/
 server-plugin/target/
 server-runtime/
 .tools/
+.mcai/
 eagler-mod/build/
 *.onnx
 *.weights.bin

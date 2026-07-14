@@ -68,6 +68,9 @@ public final class ArenaManager {
         previousTickNanos = now;
         for (Arena arena : arenas) arena.tick(tick);
         if (autoPair) pairWaitingBots();
+        if (tick % 2 == 0) {
+            for (Arena arena : activeArenas()) emit("arena_snapshot", arena, null, arena.snapshotJson(tick));
+        }
     }
 
     public Arena arenaFor(Player player) {
@@ -77,6 +80,10 @@ public final class ArenaManager {
     public Arena byId(String id) {
         for (Arena arena : arenas) if (arena.getId().equalsIgnoreCase(id)) return arena;
         return null;
+    }
+
+    String agentIdFor(Player player) {
+        return agentByUsername.getOrDefault(player.getName().toLowerCase(), player.getName());
     }
 
     public List<Arena> activeArenas() {
@@ -282,8 +289,7 @@ public final class ArenaManager {
         event.addProperty("type", "event");
         event.addProperty("event", eventName);
         if (arena != null) event.addProperty("arena_id", arena.getId());
-        if (player != null) event.addProperty("agent_id", agentByUsername.getOrDefault(
-                player.getName().toLowerCase(), player.getName()));
+        if (player != null) event.addProperty("agent_id", agentIdFor(player));
         event.add("payload", payload);
         control.broadcast(event);
     }

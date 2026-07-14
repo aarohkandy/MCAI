@@ -16,26 +16,32 @@ The bot does not set position or velocity, extend reach, invent unloaded state, 
 
 Use it only on a server you own. Public-server botting, anti-cheat evasion, leaked client source, and redistribution of Minecraft/Eaglercraft binaries or assets are deliberately outside this repository.
 
-## Quick start on the Windows Surface
+## Download and start on Windows
 
-Install Git for Windows, Node.js LTS, and Microsoft OpenJDK 17. Open PowerShell in the repository, then run:
+On the Windows Surface:
 
-```powershell
-Copy-Item config.windows.example.ps1 config.windows.ps1
-# Review the Minecraft EULA, then set MCAI_ACCEPT_EULA to true in config.windows.ps1.
-powershell -ExecutionPolicy Bypass -File .\scripts\bootstrap-windows.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\start-windows.ps1
-```
+1. Download this repository with GitHub's **Code → Download ZIP**, then extract the ZIP. A normal `git clone` works too.
+2. Double-click **`START_MCAI.cmd`**.
+3. Review and accept the Minecraft server EULA when asked. If Windows needs Git, Node.js, Java, or the isolated Python manager, the launcher lists them and asks before Windows Package Manager installs them.
+4. Leave the training window open. The live dashboard opens automatically when the first arena is ready.
 
-The bootstrap installs an isolated Python 3.12 environment, CPU PyTorch, the server template, the current official EaglerXServer release, the arena plugin, worker dependencies, and runs the test suites. The starter launches the CPU trainer and Paper first, waits for the arena control port, then starts Mineflayer.
+That is the complete normal setup. The first start downloads and builds the private Paper environment, Python 3.12/PyTorch trainer, EaglerXServer plugin, arena plugin, and Mineflayer worker. It can take a while; later starts reuse everything. Hardware-safe bot count and memory defaults are selected from the Surface's actual RAM and CPU.
+
+- Double-click **`WATCH_TRAINING.cmd`** to reopen the dashboard.
+- Double-click **`STOP_MCAI.cmd`** for an orderly emergency stop.
+- Double-click **`START_MCAI.cmd`** later to resume from the latest complete checkpoint.
+
+The dashboard is available only at `http://127.0.0.1:8788`. It shows an animated top-down arena, fighter health and damage, rollout progress toward the next PPO update, policy metrics, TPS, and memory. It does not contain or redistribute Minecraft/Eaglercraft art or client code.
+
+The launcher uses the documented Windows Package Manager agreement flags only after the user types `INSTALL`; see [Microsoft's install-command documentation](https://learn.microsoft.com/windows/package-manager/winget/install). It keeps all gameplay and training ports on loopback by default.
 
 The safe default binds Minecraft/Eaglercraft to `127.0.0.1`. Change `MCAI_BIND_ADDRESS` in `config.windows.ps1` to the Surface's private LAN IP only when you want an Eagler spectator or invited player to connect, and restrict TCP 25565 with Windows Firewall. Ports 8765–8767 stay local.
 
-CPU-only training will be much slower than GPU training. Start with the default four bots/two pairs; the load controller backs down immediately under load and only adds a pair after five healthy minutes. If the Surface has 4 GB RAM, lower `MCAI_JAVA_MEMORY` to `1G` before starting.
+CPU-only training will be much slower than GPU training. The load controller backs down immediately under load and only adds a pair after five healthy minutes. The generated `config.windows.ps1` is the advanced settings file; edit it only while MCAI is stopped. Training begins in sword mode because that is the first curriculum stage. Change `MCAI_MODE` to `crystal` or `combined` only after an appropriate checkpoint exists.
 
 The non-Windows shell scripts are retained for development and WSL/Linux experimentation. `scripts/bootstrap-mac.sh` only runs trainer tests and parity checks; it does not make the Mac part of the training deployment.
 
-The trainer freezes a policy version while collecting each 8,192-agent-tick batch, rejects stale versions, saves `checkpoints/latest.pt` atomically, and snapshots every 100,000 accepted ticks.
+The trainer freezes a policy version while collecting each 8,192-agent-tick batch, rejects stale versions, saves `checkpoints/latest.pt` atomically, and snapshots every 100,000 accepted ticks. Per-run logs are kept under `runs/windows-*`; model checkpoints are kept separately under `checkpoints/`.
 
 ## Eagler browser client
 

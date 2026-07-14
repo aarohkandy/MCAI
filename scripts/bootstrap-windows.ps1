@@ -10,6 +10,8 @@ $BotCount = if ($env:MCAI_BOT_COUNT) { [int]$env:MCAI_BOT_COUNT } else { 4 }
 $MavenVersion = "3.9.9"
 $MavenHome = Join-Path $Root ".tools\apache-maven-$MavenVersion"
 
+& (Join-Path $PSScriptRoot "install-prerequisites-windows.ps1")
+
 function Require-Command([string]$Name, [string]$InstallHint) {
     if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
         throw "Missing $Name. $InstallHint"
@@ -19,7 +21,11 @@ function Require-Command([string]$Name, [string]$InstallHint) {
 Require-Command git "Install Git for Windows (winget install Git.Git)."
 Require-Command node "Install Node.js LTS (winget install OpenJS.NodeJS.LTS)."
 Require-Command npm "npm should be included with Node.js."
-Require-Command java "Install Microsoft OpenJDK 17 (winget install Microsoft.OpenJDK.17)."
+$Java = if ($env:MCAI_JAVA_EXE -and (Test-Path $env:MCAI_JAVA_EXE)) {
+    $env:MCAI_JAVA_EXE
+} else {
+    (Get-Command java.exe -ErrorAction Stop).Source
+}
 
 $NodeVersion = (& node --version).Trim()
 $NodeMajor = [int](($NodeVersion -replace '^v', '').Split('.')[0])
@@ -29,15 +35,11 @@ if ($env:MCAI_ACCEPT_EULA -ne "true") {
     throw "Review the Minecraft EULA, then set MCAI_ACCEPT_EULA=true in config.windows.ps1 before setup."
 }
 
-$JavaVersionText = (& java -version 2>&1 | Select-Object -First 1).ToString()
+$JavaVersionText = (& $Java -version 2>&1 | Select-Object -First 1).ToString()
 if ($JavaVersionText -notmatch '"(?<major>\d+)') { throw "Could not read the Java version." }
 if ([int]$Matches.major -lt 17) { throw "Current EaglerXServer requires Java 17 or newer." }
 
-if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-    Invoke-RestMethod https://astral.sh/uv/install.ps1 | Invoke-Expression
-    $env:Path = "$HOME\.local\bin;$HOME\.cargo\bin;$env:Path"
-}
-Require-Command uv "Restart PowerShell after installing uv."
+Require-Command uv "Run START_MCAI.cmd again so Windows Package Manager can install uv."
 & uv python install 3.12
 
 $VenvPython = Join-Path $Root "trainer\.venv\Scripts\python.exe"
@@ -47,7 +49,9 @@ if (Test-Path $VenvPython) {
 } else {
     & uv venv --python 3.12 (Join-Path $Root "trainer\.venv")
 }
+& uv pip install --python $VenvPython "torch>=2.4,<2.8" --index-url https://download.pytorch.org/whl/cpu
 & uv pip install --python $VenvPython -e "$Root\trainer[dev,export]"
+& $VenvPython -c "import torch; assert torch.version.cuda is None, 'Expected the CPU-only PyTorch build'; print('CPU PyTorch', torch.__version__)"
 
 if (-not (Test-Path (Join-Path $Runtime ".git"))) {
     if (Test-Path $Runtime) { throw "$Runtime exists but is not the expected server-template checkout." }
@@ -71,6 +75,23 @@ if (-not (Test-Path $MavenExe)) {
 Copy-Item (Join-Path $Root "server-plugin\target\mcai-arena-0.1.0.jar") (Join-Path $Plugins "MCAIArena.jar") -Force
 & $VenvPython (Join-Path $Root "scripts\configure_runtime.py") $Runtime --bind $BindAddress --bots $BotCount
 Set-Content -Path (Join-Path $Runtime "eula.txt") -Value "eula=true" -Encoding ASCII
+
+$PluginDirectory = Join-Path $Runtime "plugins\MCAIArena"
+New-Item -ItemType Directory -Force -Path $PluginDirectory | Out-Null
+$Mode = if ($env:MCAI_MODE) { $env:MCAI_MODE.ToLowerInvariant() } else { "sword" }
+if ($Mode -notin @("sword", "crystal", "combined")) { throw "MCAI_MODE must be sword, crystal, or combined." }
+$PluginConfig = @"
+world-name: mcai_training
+control-port: 8765
+max-concurrent-pairs: $([math]::Max(1, [math]::Floor($BotCount / 2)))
+bot-name-prefix: MCAI_
+match-timeout-seconds: 120
+auto-pair-bots: true
+default-mode: $Mode
+arena-spacing: 96
+shaping-scale: 1.0
+"@
+Set-Content -Path (Join-Path $PluginDirectory "config.yml") -Value $PluginConfig -Encoding UTF8
 
 $Disabled = Join-Path $Runtime "plugins-disabled"
 New-Item -ItemType Directory -Force -Path $Disabled | Out-Null

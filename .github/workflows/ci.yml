@@ -1,0 +1,55 @@
+name: MCAI verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: microsoft
+          java-version: '17'
+          cache: maven
+      - run: npm ci
+        working-directory: worker
+      - run: npm test -- --run
+        working-directory: worker
+      - run: npm run typecheck && npm run build
+        working-directory: worker
+      - run: pip install -e './trainer[dev,export]'
+      - run: python -m pytest -q trainer/tests
+      - run: mvn -q -f server-plugin/pom.xml test package
+      - run: node dashboard/test/smoke.mjs
+      - run: npm run check && npm run build
+        working-directory: eagler-mod
+
+  windows-launchers:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse every PowerShell launcher
+        shell: powershell
+        run: |
+          $errors = @()
+          Get-ChildItem scripts -Filter '*.ps1' | ForEach-Object {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($_.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+            $errors += $parseErrors
+          }
+          if ($errors.Count) { $errors | Format-List; exit 1 }
+      - name: Check dashboard JavaScript
+        run: node --check dashboard/server.mjs && node --check dashboard/public/app.js

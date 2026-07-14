@@ -1,0 +1,77 @@
+:root {
+  color-scheme: dark;
+  --bg: #090d12;
+  --surface: #111821;
+  --surface-2: #16202b;
+  --border: #263442;
+  --text: #eff7f2;
+  --muted: #91a39a;
+  --green: #64e38d;
+  --green-soft: #163523;
+  --blue: #67b7ff;
+  --red: #ff6b6b;
+  --gold: #f2c45c;
+  --grid: #20302a;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: radial-gradient(circle at 50% -20%, #17251f 0, var(--bg) 45%); color: var(--text); font: 15px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace; }
+main { width: min(1480px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+header, .panel-head, .progress-label, .connection, .actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: 0; font-size: clamp(24px, 4vw, 42px); letter-spacing: -0.045em; }
+h2 { margin-bottom: 8px; font-size: 16px; }
+.eyebrow { color: var(--green); margin-bottom: 4px; font-size: 12px; letter-spacing: .12em; }
+.connection { justify-content: flex-start; color: var(--muted); }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 16px currentColor; }
+.dot.live { background: var(--green); color: var(--green); }
+.dot.offline { background: var(--red); color: var(--red); }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 24px 0 18px; }
+.stats article, aside section { border: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 94%, transparent); border-radius: 12px; padding: 16px; }
+.stats span, .stats small { display: block; color: var(--muted); }
+.stats strong { display: block; margin: 5px 0 1px; font-size: clamp(19px, 2vw, 27px); font-weight: 600; }
+.progress-section { margin-bottom: 22px; }
+.progress-label { margin-bottom: 8px; color: var(--muted); }
+.progress-label strong { color: var(--text); }
+.progress-track { overflow: hidden; height: 9px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); }
+.progress-bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--green), var(--blue)); transition: width .25s ease; }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 16px; align-items: start; }
+.arena-panel { min-width: 0; }
+.panel-head { margin-bottom: 10px; align-items: flex-end; }
+.panel-head h2 { margin-bottom: 2px; font-size: 20px; }
+.panel-head p { margin-bottom: 0; color: var(--muted); }
+label { color: var(--muted); }
+select, button { font: inherit; color: var(--text); background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 11px; }
+button { cursor: pointer; }
+button:hover { border-color: var(--green); }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+button.danger { color: #fff; background: #6d2529; border-color: #a54046; }
+#arena-canvas { display: block; width: 100%; aspect-ratio: 16 / 9; min-height: 360px; border: 1px solid var(--border); border-radius: 12px; background: #0c1410; }
+.fighters { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 10px; }
+.fighter { border-left: 3px solid var(--green); background: var(--surface); padding: 11px 13px; border-radius: 4px 10px 10px 4px; }
+.fighter:nth-child(2) { border-color: var(--blue); }
+.fighter-line { display: flex; justify-content: space-between; gap: 8px; }
+.fighter small { color: var(--muted); }
+.health-track { height: 5px; margin-top: 7px; background: var(--surface-2); border-radius: 999px; overflow: hidden; }
+.health-fill { height: 100%; background: var(--green); }
+aside { display: grid; gap: 12px; }
+aside p { color: var(--muted); margin-bottom: 0; }
+.metrics { margin: 0; }
+.metrics div { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.metrics div:last-child { border-bottom: 0; }
+.metrics dt { color: var(--muted); }
+.metrics dd { margin: 0; }
+.actions { align-items: stretch; flex-direction: column; margin-top: 14px; }
+.actions button { width: 100%; }
+.command-result { min-height: 1.4em; margin-top: 10px; }
+@media (max-width: 900px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .workspace { grid-template-columns: 1fr; }
+  aside { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  main { width: min(100% - 20px, 1480px); padding-top: 18px; }
+  header, .panel-head { align-items: flex-start; flex-direction: column; }
+  .stats, .fighters, aside { grid-template-columns: 1fr; }
+  #arena-canvas { min-height: 280px; }
+}
+@media (prefers-reduced-motion: reduce) { .progress-bar { transition: none; } }

@@ -1,5 +1,6 @@
 package dev.mcbot.arena;
 
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
@@ -8,6 +9,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.EnderCrystal;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -39,6 +41,7 @@ public final class Arena {
     private String episodeId;
     private long startedTick;
     private long deadlineTick;
+    private int arenaSize = 21;
     private ArenaMode mode = ArenaMode.COMBINED;
     private boolean active;
     private boolean basePrepared;
@@ -66,6 +69,7 @@ public final class Arena {
         clearEntities();
         Random random = new Random(seed);
         int size = mode == ArenaMode.SWORD ? 21 : 17 + 2 * random.nextInt(8);
+        arenaSize = size;
         if (mode == ArenaMode.COMBINED || mode == ArenaMode.CRYSTAL) generateLayout(random, size);
         Location[] spawns = spawnLocations(random, size);
         clearSpawn(spawns[0]);
@@ -159,6 +163,69 @@ public final class Arena {
         json.addProperty("blocks_placed", value.blocksPlaced);
         json.addProperty("blocks_mined", value.blocksMined);
         json.addProperty("invalid_interactions", value.invalidInteractions);
+        return json;
+    }
+
+    public JsonObject snapshotJson(long currentTick) {
+        JsonObject json = new JsonObject();
+        json.addProperty("episode_id", episodeId);
+        json.addProperty("arena_seed", seed);
+        json.addProperty("mode", mode.name().toLowerCase());
+        json.addProperty("arena_size", arenaSize);
+        json.addProperty("elapsed_ticks", Math.max(0, currentTick - startedTick));
+        json.addProperty("remaining_ticks", Math.max(0, deadlineTick - currentTick));
+
+        JsonArray fighters = new JsonArray();
+        for (Player player : players()) {
+            JsonObject fighter = new JsonObject();
+            Location location = player.getLocation();
+            Vector velocity = player.getVelocity();
+            fighter.addProperty("agent_id", manager.agentIdFor(player));
+            fighter.addProperty("name", player.getName());
+            fighter.addProperty("x", location.getX() - center.getX());
+            fighter.addProperty("y", location.getY() - FLOOR_Y);
+            fighter.addProperty("z", location.getZ() - center.getZ());
+            fighter.addProperty("yaw", location.getYaw());
+            fighter.addProperty("pitch", location.getPitch());
+            fighter.addProperty("vx", velocity.getX());
+            fighter.addProperty("vy", velocity.getY());
+            fighter.addProperty("vz", velocity.getZ());
+            fighter.addProperty("health", Math.max(0, player.getHealth()));
+            fighter.addProperty("absorption", Math.max(0, absorption(player)));
+            fighter.addProperty("food", player.getFoodLevel());
+            fighter.addProperty("grounded", player.isOnGround());
+            fighter.add("stats", statsJson(player));
+            fighters.add(fighter);
+        }
+        json.add("fighters", fighters);
+
+        JsonArray entities = new JsonArray();
+        for (Entity entity : center.getWorld().getEntities()) {
+            if (!(entity instanceof EnderCrystal) || !contains(entity.getLocation())) continue;
+            Location location = entity.getLocation();
+            JsonObject value = new JsonObject();
+            value.addProperty("type", "crystal");
+            value.addProperty("x", location.getX() - center.getX());
+            value.addProperty("y", location.getY() - FLOOR_Y);
+            value.addProperty("z", location.getZ() - center.getZ());
+            entities.add(value);
+        }
+        json.add("entities", entities);
+
+        JsonArray blocks = new JsonArray();
+        for (BlockKey key : touchedBlocks) {
+            if (key.y <= FLOOR_Y) continue;
+            Block block = center.getWorld().getBlockAt(key.x, key.y, key.z);
+            if (block.getType() == Material.AIR || block.getType() == Material.BARRIER) continue;
+            JsonObject value = new JsonObject();
+            value.addProperty("x", key.x - center.getBlockX());
+            value.addProperty("y", key.y - FLOOR_Y);
+            value.addProperty("z", key.z - center.getBlockZ());
+            value.addProperty("type", block.getType().name().toLowerCase());
+            blocks.add(value);
+            if (blocks.size() >= 256) break;
+        }
+        json.add("blocks", blocks);
         return json;
     }
 

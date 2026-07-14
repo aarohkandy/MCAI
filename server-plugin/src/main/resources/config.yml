@@ -4,6 +4,6 @@ max-concurrent-pairs: 2
 bot-name-prefix: MCAI_
 match-timeout-seconds: 120
 auto-pair-bots: true
-default-mode: combined
+default-mode: sword
 arena-spacing: 96
 shaping-scale: 1.0
