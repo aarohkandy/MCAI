@@ -65,7 +65,7 @@ Include every named gate for that stage, then run:
   --state .\checkpoints\curriculum.json --results .\evaluation\results.json
 ```
 
-Missing gates fail closed. Record held-out Elo after each league evaluation with `mcai-trainer league-eval ELO`; the fifth flat evaluation sets `exploiter_requested` in `checkpoints/league.json`.
+Missing gates fail closed. Record held-out Elo after each league evaluation with `mcai-trainer league-eval ELO`. A flat five-evaluation window may request an exploiter only after the main policy passes the diversity gauntlet recorded in `checkpoints/league.json`: at least four matches in 10 of 12 crazy styles, a 55% score in at least 8 styles, and a 60% aggregate score. Before that gate, match assignment is 10% mirror, 15% historical, and 75% adaptive crazy-strategy play; weak and under-tested styles are sampled more often. After passing, historical specialization may rise to 40%, while mirror play remains capped at 15%.
 
 To act on that request, stop the stack, set `MCAI_EXPLOITER_TARGET` to a frozen main snapshot, and restart. The Windows launcher uses an isolated `checkpoints/exploiter-active` run initialized from that target; every opponent is the frozen main policy while the exploiter learns. After the desired exploiter budget/evaluation, stop it and promote the frozen result:
 
@@ -75,6 +75,26 @@ To act on that request, stop the stack, set `MCAI_EXPLOITER_TARGET` to a frozen 
 ```
 
 Clear `MCAI_EXPLOITER_TARGET` before restarting main training. Promotion validates the checkpoint, copies it atomically under a `policy-exploiter-*` name, seeds its rating near the main policy, and makes it eligible for the 40% historical-opponent pool.
+
+## Automatic reward adaptation
+
+Online training adjusts five bounded reward groups automatically after complete, successfully published PPO generations:
+
+- `damage`: policy hits, opponent damage, damage taken, and totem advantage.
+- `crystal`: verified placement/detonation/damaging chains and matching self-crystal penalties.
+- `terminal_speed`: the early-kill bonus, timeout/disengagement losses, and fight-time pressure. The base kill/death objective is never changed.
+- `activity`: approach, legal attacks, inaction, missed/spam attacks, and invalid interactions.
+- `building`: tactical obsidian, mine-to-place sequences, and useful mining.
+
+The controller uses only accepted main-policy transitions. It watches hit density, damage efficiency, autonomous crystal conversion, policy-owned endings, inactivity, building frequency, PPO KL, and worker latency. A signal must persist across multiple rollout generations before a multiplier moves; changes are small, bounded, and followed by a cooldown. Numerically bad or overloaded generations do not tune rewards.
+
+Verified autonomous wins and damaging crystal chains also enter a bounded elite replay buffer. Later auxiliary imitation batches reserve a small, capped quota for these exact executed policy actions, weighted toward faster kills and balanced across lanes/mechanics. Teacher, safety, scripted-opponent, malformed, and non-finite actions are never admitted.
+
+League matchmaking is competence-gated. Below 25% held-out scripted score it emphasizes mirrors and attainable-frontier scripts so the learner sees enough successful endings; from 25–50% it adds more history and exploiters; at 50% it restores the full hard PFSP population. Hard and under-covered styles retain probability in every stage, and the stage is reconstructed from persisted results after restart.
+
+State survives restarts in `checkpoints/adaptive-reward-state.json`, and every evaluation/change is appended to `checkpoints/adaptive-reward-audit.jsonl`. The trainer republishes the saved profile whenever Paper reconnects. Paper snapshots each profile at episode start, so a live match never changes objectives halfway through. The current multipliers and the reason for the last change are visible on the dashboard.
+
+Adaptive rewards are enabled by default. For a controlled ablation only, start the trainer with `--disable-adaptive-rewards`.
 
 ## Evaluation gates
 

@@ -18,10 +18,14 @@ def main() -> None:
     with socket.create_connection(("127.0.0.1", arguments.port), timeout=10) as connection:
         connection.sendall(request.encode("utf-8"))
         with connection.makefile("r", encoding="utf-8") as response:
-            line = response.readline()
-    if not line:
-        raise SystemExit("arena control closed without a response")
-    result = json.loads(line)
+            result = None
+            for line in response:
+                message = json.loads(line)
+                if message.get("type") == "response" and message.get("id") == 1:
+                    result = message
+                    break
+    if result is None:
+        raise SystemExit("arena control closed without a matching response")
     print(json.dumps(result, indent=2))
     if not result.get("ok"):
         raise SystemExit(1)

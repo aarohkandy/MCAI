@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mc-bot.local/schema/observation-v2.schema.json",
+  "title": "ObservationV2",
+  "type": "object",
+  "required": ["schema_version", "match", "self", "opponent", "entities", "blocks", "action_mask", "tactical"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "match": { "type": "object" },
+    "self": { "type": "object" },
+    "opponent": { "type": ["object", "null"] },
+    "entities": { "type": "array", "maxItems": 16 },
+    "blocks": { "type": "array", "maxItems": 48 },
+    "action_mask": {
+      "type": "object",
+      "required": ["tactical_block_place_ready"],
+      "properties": { "tactical_block_place_ready": { "type": "boolean" } }
+    },
+    "tactical": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["threat", "crystal_candidates", "block_candidates", "recent_history", "survival"],
+      "properties": {
+        "threat": { "type": "object" },
+        "crystal_candidates": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/crystalCandidate" } },
+        "block_candidates": { "type": "array", "maxItems": 16, "items": { "$ref": "#/$defs/blockCandidate" } },
+        "recent_history": { "type": "array", "maxItems": 8 },
+        "survival": { "type": "object" }
+      }
+    }
+  },
+  "$defs": {
+    "vec3": { "type": "object", "required": ["x", "y", "z"], "properties": { "x": { "type": "number" }, "y": { "type": "number" }, "z": { "type": "number" } } },
+    "crystalCandidate": {
+      "type": "object",
+      "required": ["kind", "source_index", "body_relative_position", "distance", "reachable", "visible", "placement_legal", "estimated_opponent_damage", "estimated_self_damage", "pop_potential", "escape_direction"],
+      "properties": {
+        "kind": { "enum": ["base", "crystal"] }, "source_index": { "type": "integer", "minimum": 0 }, "body_relative_position": { "$ref": "#/$defs/vec3" },
+        "distance": { "type": "number", "minimum": 0 }, "reachable": { "type": "boolean" }, "visible": { "type": "boolean" }, "placement_legal": { "type": "boolean" },
+        "estimated_opponent_damage": { "type": "number", "minimum": 0 }, "estimated_self_damage": { "type": "number", "minimum": 0 }, "pop_potential": { "type": "number", "minimum": 0, "maximum": 1 }, "escape_direction": { "enum": [-1, 0, 1] }
+      }
+    },
+    "blockCandidate": {
+      "type": "object",
+      "required": ["source_index", "body_relative_position", "distance", "purpose", "reachable", "visible", "cover_value", "followup_crystal_viability"],
+      "properties": {
+        "source_index": { "type": "integer", "minimum": 0 }, "body_relative_position": { "$ref": "#/$defs/vec3" }, "distance": { "type": "number", "minimum": 0 },
+        "purpose": { "enum": ["crystal_base", "cover", "mine_path", "high_ground"] }, "reachable": { "type": "boolean" }, "visible": { "type": "boolean" },
+        "cover_value": { "type": "number", "minimum": 0, "maximum": 1 }, "followup_crystal_viability": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}

@@ -1,8 +1,8 @@
-import { NOOP_ACTION, type ActionV1, type ObservationV1 } from './contracts.js'
+import { NOOP_ACTION, type ActionV1, type AnyObservation } from './contracts.js'
 
 export type ScriptedStyle = 'rush' | 'strafe' | 'retreat' | 'jump_critical' | 'defensive' | 'erratic'
 
-export function scriptedAction(observation: ObservationV1, style: ScriptedStyle = 'strafe'): ActionV1 {
+export function scriptedAction(observation: AnyObservation, style: ScriptedStyle = 'strafe'): ActionV1 {
   const opponent = observation.opponent
   if (!opponent) return { ...NOOP_ACTION, yaw_delta: 0.15 }
   const relative = opponent.relative_position

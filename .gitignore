@@ -21,6 +21,9 @@ evaluation/
 worker/node_modules/
 worker/dist/
 worker/coverage/
+/node_modules/
+/.chrome-mcai*/
+/--help
 server-plugin/target/
 server-runtime/
 .tools/

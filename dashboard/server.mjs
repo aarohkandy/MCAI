@@ -16,7 +16,7 @@ const snapshots = new Map()
 let arenaStatus = null
 let arenaConnected = false
 let trainer = { phase: 'starting', policy_version: 0, total_agent_ticks: 0, collected_agent_ticks: 0,
-  target_agent_ticks: Number.parseInt(process.env.MCAI_ROLLOUT_STEPS || '8192', 10), updates: [] }
+  target_agent_ticks: Number.parseInt(process.env.MCAI_ROLLOUT_STEPS || '4096', 10), updates: [] }
 let sequence = 0
 let socket = null
 let socketBuffer = ''
@@ -112,14 +112,15 @@ function refreshTrainer() {
   const update = latest('ppo_update')
   const updates = events.filter(event => event.event === 'ppo_update').slice(-40)
   const newest = [progress, training, update].filter(Boolean).sort((a, b) => a._order - b._order).at(-1)
-  let phase = ready ? 'collecting' : 'starting'
+  const freezePolicy = Boolean(ready?.freeze_policy)
+  let phase = ready ? (freezePolicy ? 'frozen' : 'collecting') : 'starting'
   let collected = 0
   let target = trainer.target_agent_ticks
-  if (newest?.event === 'rollout_progress') {
+  if (!freezePolicy && newest?.event === 'rollout_progress') {
     phase = 'collecting'
     collected = newest.collected_agent_ticks || 0
     target = newest.target_agent_ticks || target
-  } else if (newest?.event === 'ppo_training_started') {
+  } else if (!freezePolicy && newest?.event === 'ppo_training_started') {
     phase = 'updating'
     collected = newest.batch_agent_ticks || target
   }
@@ -127,8 +128,9 @@ function refreshTrainer() {
     phase,
     device: ready?.device || trainer.device || 'cpu',
     parameters: ready?.parameters || trainer.parameters || 0,
+    freeze_policy: freezePolicy,
     policy_version: update?.policy_version ?? progress?.policy_version ?? ready?.policy_version ?? 0,
-    total_agent_ticks: update?.total_agent_ticks ?? progress?.total_agent_ticks ?? 0,
+    total_agent_ticks: update?.total_agent_ticks ?? progress?.total_agent_ticks ?? ready?.total_agent_ticks ?? 0,
     collected_agent_ticks: collected,
     target_agent_ticks: target,
     last_update: update || null,

@@ -1,7 +1,10 @@
 const elements = Object.fromEntries([
   'connection-dot', 'connection-text', 'policy', 'phase', 'ticks', 'device', 'tps', 'tick-time', 'memory',
   'pairs', 'progress-value', 'progress-bar', 'arena-title', 'arena-subtitle', 'arena-select', 'fighters',
-  'policy-loss', 'value-loss', 'entropy', 'kl', 'pause', 'resume', 'command-result', 'arena-canvas'
+  'policy-loss', 'value-loss', 'entropy', 'kl', 'reward-mean', 'reward-clips',
+  'weight-damage', 'weight-crystal', 'weight-speed', 'weight-activity', 'weight-building',
+  'reward-controller',
+  'pause', 'resume', 'command-result', 'arena-canvas'
 ].map(id => [id, document.getElementById(id)]))
 const canvas = elements['arena-canvas']
 const context = canvas.getContext('2d')
@@ -24,7 +27,9 @@ function render(state) {
   elements['connection-text'].textContent = connected ? 'Live' : 'Connecting to arena…'
   const trainer = state.trainer || {}
   elements.policy.textContent = `v${trainer.policy_version || 0}`
-  elements.phase.textContent = trainer.phase === 'updating' ? 'learning from batch' : trainer.phase || 'starting'
+  elements.phase.textContent = trainer.freeze_policy
+    ? 'policy frozen for clean evaluation'
+    : trainer.phase === 'updating' ? 'learning from batch' : trainer.phase || 'starting'
   elements.ticks.textContent = integer(trainer.total_agent_ticks)
   elements.device.textContent = `${String(trainer.device || 'cpu').toUpperCase()} · ${integer(trainer.parameters)} params`
   const arena = state.arena || {}
@@ -32,15 +37,40 @@ function render(state) {
   elements['tick-time'].textContent = arena.p95_tick_ms ? `p95 ${Number(arena.p95_tick_ms).toFixed(1)} ms` : 'waiting for Paper'
   elements.memory.textContent = bytes((state.system?.total_memory_bytes || 0) - (state.system?.free_memory_bytes || 0))
   elements.pairs.textContent = `${arena.active_pairs || 0} active pair${arena.active_pairs === 1 ? '' : 's'} · ${state.system?.cpu_threads || 0} threads`
-  const target = trainer.target_agent_ticks || 8192
+  const target = trainer.target_agent_ticks || 4096
   const collected = Math.min(target, trainer.collected_agent_ticks || 0)
-  elements['progress-value'].textContent = trainer.phase === 'updating' ? 'Optimizing policy…' : `${integer(collected)} / ${integer(target)}`
-  elements['progress-bar'].style.width = `${Math.max(0, Math.min(100, collected / target * 100))}%`
+  elements['progress-value'].textContent = trainer.freeze_policy
+    ? 'Inference only — PPO updates paused'
+    : trainer.phase === 'updating' ? 'Optimizing policy…' : `${integer(collected)} / ${integer(target)}`
+  elements['progress-bar'].style.width = trainer.freeze_policy
+    ? '100%'
+    : `${Math.max(0, Math.min(100, collected / target * 100))}%`
   const update = trainer.last_update || {}
   elements['policy-loss'].textContent = number(update.policy_loss)
   elements['value-loss'].textContent = number(update.value_loss)
   elements.entropy.textContent = number(update.entropy)
   elements.kl.textContent = number(update.approximate_kl, 5)
+  elements['reward-mean'].textContent = Number.isFinite(Number(update.reward_mean_training))
+    ? `${number(update.reward_mean_training, 4)} train / ${number(update.reward_mean_raw, 4)} raw`
+    : '—'
+  elements['reward-clips'].textContent = Number.isFinite(Number(update.reward_clipped_transitions))
+    ? `${integer(update.reward_clipped_transitions)} capped`
+    : '—'
+  const profile = arena.reward_profile || {}
+  const multipliers = profile.multipliers || {}
+  const showWeight = (id, key) => {
+    elements[id].textContent = Number.isFinite(Number(multipliers[key]))
+      ? `${Number(multipliers[key]).toFixed(2)}x`
+      : '1.00x'
+  }
+  showWeight('weight-damage', 'damage')
+  showWeight('weight-crystal', 'crystal')
+  showWeight('weight-speed', 'terminal_speed')
+  showWeight('weight-activity', 'activity')
+  showWeight('weight-building', 'building')
+  elements['reward-controller'].textContent = Number(profile.generation) >= 0
+    ? `Generation ${integer(profile.generation)} - ${String(profile.reason || 'automatic adjustment')}`
+    : 'Automatic controller is waiting for enough clean match data.'
   updateArenaChoices(state.snapshots || [])
   const snapshot = (state.snapshots || []).find(value => value.arena_id === selectedArena) || state.snapshots?.[0]
   drawArena(snapshot)
@@ -112,8 +142,13 @@ function drawArena(snapshot) {
     context.fillText(fighter.name, x, y - radius - 5)
   })
   const seconds = Math.ceil(Number(snapshot.remaining_ticks || 0) / 20)
-  elements['arena-title'].textContent = `${snapshot.arena_id} · ${String(snapshot.mode || 'sword').toUpperCase()}`
-  elements['arena-subtitle'].textContent = `${seconds}s remaining · seed ${snapshot.arena_seed}`
+  const radius = Number(snapshot.arena_radius || Math.max(1, (Number(snapshot.arena_size || 1) + 1) / 2))
+  const playable = Math.max(1, radius * 2 - 1)
+  const stage = Number(snapshot.curriculum_stage || 1)
+  const stageCount = Number(snapshot.curriculum_stage_count || 1)
+  const lane = String(snapshot.lane || snapshot.mode || 'sword').replaceAll('_', ' ').toUpperCase()
+  elements['arena-title'].textContent = `${snapshot.arena_id} | ${lane} | stage ${stage}/${stageCount}`
+  elements['arena-subtitle'].textContent = `${playable}x${playable} playable | depth ${Number(snapshot.arena_depth || 0)} | ${seconds}s remaining | seed ${snapshot.arena_seed}`
   renderFighters(snapshot.fighters || [], fighterColors)
 }
 
@@ -126,7 +161,17 @@ function renderFighters(fighters, colors) {
     line.append(name, health)
     const details = document.createElement('small')
     const stats = fighter.stats || {}
-    details.textContent = `${Number(stats.damage_dealt || 0).toFixed(1)} damage · ${stats.invalid_interactions || 0} invalid`
+    const rawPoints = stats.shaping_points ?? stats.reward_points ?? stats.points
+    const points = Number.isFinite(Number(rawPoints)) ? ` · ${Number(rawPoints).toFixed(3)} points` : ''
+    const policy = stats.execution?.policy || {}
+    const teachers = ['teacher_sword', 'teacher_crystal', 'teacher_block']
+      .map(source => stats.execution?.[source] || {})
+    const assistedHits = teachers.reduce((sum, value) => sum + Number(value.hits_landed || 0), 0)
+    const autonomous = `P ${policy.hits_landed || 0} hits, ${Number(policy.damage_dealt || 0).toFixed(1)} dmg`
+    const crystals = `P ${policy.crystals_placed || 0}/${policy.crystals_exploded || 0} crystal`
+    const blocks = `P ${policy.blocks_mined || 0}/${policy.blocks_placed || 0} mine/place`
+    const assisted = assistedHits ? ` | T ${assistedHits} hits` : ''
+    details.textContent = `${autonomous}${points} | ${crystals} | ${blocks}${assisted} | ${stats.invalid_interactions || 0} invalid`
     const track = document.createElement('div'); track.className = 'health-track'
     const fill = document.createElement('div'); fill.className = 'health-fill'; fill.style.width = `${Math.max(0, Math.min(100, Number(fighter.health || 0) / 20 * 100))}%`
     track.append(fill); node.append(line, details, track); return node

@@ -4,6 +4,7 @@ import type { ArenaClient } from './arena-client.js'
 
 export type LoadControllerOptions = {
   initialPairs: number
+  minimumPairs?: number
   maximumPairs: number
   sampleIntervalMs?: number
   stableSamplesBeforeIncrease?: number
@@ -13,13 +14,18 @@ export class LoadController {
   private readonly histogram: IntervalHistogram
   private readonly intervalMs: number
   private readonly stableSamplesBeforeIncrease: number
+  private readonly minimumPairs: number
   private pairs: number
   private stableSamples = 0
   private timer: NodeJS.Timeout | null = null
   private stopped = false
 
   constructor(private readonly arena: ArenaClient, private readonly options: LoadControllerOptions) {
-    this.pairs = Math.max(1, Math.min(options.initialPairs, options.maximumPairs))
+    // minimumPairs is a hard visibility/concurrency guarantee. Load shedding
+    // may still reduce capacity above it, but can never disable a configured
+    // arena, even during a severe or sustained resource spike.
+    this.minimumPairs = Math.max(1, Math.min(options.minimumPairs ?? 1, options.maximumPairs))
+    this.pairs = Math.max(this.minimumPairs, Math.min(options.initialPairs, options.maximumPairs))
     this.intervalMs = options.sampleIntervalMs ?? 30_000
     this.stableSamplesBeforeIncrease = options.stableSamplesBeforeIncrease ?? 10
     this.histogram = monitorEventLoopDelay({ resolution: 1 })
@@ -47,7 +53,7 @@ export class LoadController {
       || eventLoopP95Ms > 10
     if (overloaded) {
       this.stableSamples = 0
-      if (this.pairs > 1) {
+      if (this.pairs > this.minimumPairs) {
         this.pairs -= 1
         return 'decrease'
       }

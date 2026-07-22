@@ -34,7 +34,7 @@ The schemas live in `protocol/schema/`. The TypeScript and Python feature encode
 
 Self, opponent, entity-slot, block-slot, and legal-mask MLPs feed masked mean/max slot pooling. A fusion MLP feeds a 128-unit GRU. Independent categorical heads control discrete actions; a tanh-squashed Gaussian controls camera deltas; a scalar head estimates state value. The current network has roughly one third of the one-million-parameter ceiling.
 
-PPO defaults match the design: discount `0.995`, GAE `0.95`, clip `0.2`, learning rate `3e-4`, entropy `0.01`, value coefficient `0.5`, gradient clip `0.5`, 8,192 agent-ticks, 32-tick sequences, 512 samples/minibatch, and four epochs.
+PPO defaults use discount `0.995`, GAE `0.95`, clip `0.2`, learning rate `1e-4`, entropy `0.01`, value coefficient `0.5`, gradient clip `0.5`, 4,096 agent-ticks, 32-tick sequences, 1,024 valid samples/minibatch, four epochs, and a `0.01` target KL. The critic uses PPO-clipped Huber error so rare terminal floods cannot consume the shared actor/critic gradient budget. Continuity-aware packing trims recurrent padding and keeps optimizer steps near the configured real-sample count.
 
 ## Arena control
 

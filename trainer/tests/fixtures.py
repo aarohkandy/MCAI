@@ -29,6 +29,8 @@ def observation(episode: str = "test-episode", tick: int = 1) -> dict:
             "armor": [item("diamond_chestplate", 1)] * 4,
         },
         "entities": [], "blocks": [],
-        "action_mask": {"attack": True, "use_main": True, "use_offhand": True,
+        "action_mask": {"attack": True, "combat_attack_ready": True,
+                        "tactical_block_break_ready": False,
+                        "use_main": True, "use_offhand": True,
                         "release_use": False, "swap_offhand": True, "hotbar": [True] * 9},
     }

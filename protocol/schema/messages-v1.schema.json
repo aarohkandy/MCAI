@@ -50,17 +50,143 @@
                 "required": ["agent_id", "observation", "reward", "terminated", "truncated", "info"],
                 "properties": {
                   "agent_id": { "type": "string" },
-                  "observation": { "$ref": "observation-v1.schema.json" },
+                  "observation": { "oneOf": [
+                    { "$ref": "observation-v1.schema.json" },
+                    { "$ref": "observation-v2.schema.json" }
+                  ] },
                   "reward": { "type": "number" },
                   "terminated": { "type": "boolean" },
                   "truncated": { "type": "boolean" },
-                  "info": { "type": "object" }
+                  "info": { "$ref": "#/$defs/stepInfo" },
+                  "execution": { "$ref": "#/$defs/execution" }
                 }
               }
             }
           }
         }
       ]
+    },
+    "execution": {
+      "type": "object",
+      "required": ["source", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "action_id": { "type": "integer", "minimum": 1 },
+        "source": {
+          "type": "string",
+          "enum": ["policy", "teacher_sword", "teacher_crystal", "teacher_block", "safety"]
+        },
+        "action": { "$ref": "action-v1.schema.json" },
+        "pre_execution_observation": { "oneOf": [
+          { "$ref": "observation-v1.schema.json" },
+          { "$ref": "observation-v2.schema.json" }
+        ] }
+      }
+    },
+    "stepInfo": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "episode_id": { "type": "string" },
+        "arena_seed": { "type": "integer" },
+        "mode": { "type": "string", "enum": ["sword", "crystal", "combined", "terrain"] },
+        "lane": { "type": "string", "enum": ["sword_retention", "crystal_retention", "combined", "terrain"] },
+        "reward": { "type": "number" },
+        "truncated": { "type": "boolean" },
+        "reason": { "type": "string" },
+        "outcome": { "type": "string", "enum": ["win", "loss", "draw"] },
+        "terminal_source": {
+          "type": "string",
+          "enum": ["policy", "teacher_sword", "teacher_crystal", "teacher_block", "safety", "self", "environment", "none"]
+        },
+        "policy_owned_kill": { "type": "boolean" },
+        "match_ticks": { "type": "integer", "minimum": 0 },
+        "stats": { "$ref": "#/$defs/combatStats" }
+      }
+    },
+    "combatStats": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "damage_dealt": { "type": "number", "minimum": 0 },
+        "damage_taken": { "type": "number", "minimum": 0 },
+        "self_damage": { "type": "number", "minimum": 0 },
+        "policy_kills": { "type": "integer", "minimum": 0 },
+        "healing": { "type": "number", "minimum": 0 },
+        "totem_pops": { "type": "integer", "minimum": 0 },
+        "totem_pops_forced": { "type": "integer", "minimum": 0 },
+        "obsidian_placed": { "type": "integer", "minimum": 0 },
+        "tactical_obsidian_placed": { "type": "integer", "minimum": 0 },
+        "tactical_mine_place_sequences": { "type": "integer", "minimum": 0 },
+        "policy_built_crystal_chains_damaging": { "type": "integer", "minimum": 0 },
+        "rewarded_obsidian_combos": { "type": "integer", "minimum": 0 },
+        "crystals_placed": { "type": "integer", "minimum": 0 },
+        "crystals_destroyed": { "type": "integer", "minimum": 0 },
+        "crystals_exploded": { "type": "integer", "minimum": 0 },
+        "policy_crystal_chains_started": { "type": "integer", "minimum": 0 },
+        "policy_crystal_chains_detonated": { "type": "integer", "minimum": 0 },
+        "policy_crystal_chains_damaging": { "type": "integer", "minimum": 0 },
+        "policy_crystal_chains_popping": { "type": "integer", "minimum": 0 },
+        "rewarded_crystal_combos": { "type": "integer", "minimum": 0 },
+        "policy_crystal_chain_damage_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "blocks_placed": { "type": "integer", "minimum": 0 },
+        "blocks_mined": { "type": "integer", "minimum": 0 },
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "policy": { "$ref": "#/$defs/attributedEvents" },
+            "teacher_sword": { "$ref": "#/$defs/attributedEvents" },
+            "teacher_crystal": { "$ref": "#/$defs/attributedEvents" },
+            "teacher_block": { "$ref": "#/$defs/attributedEvents" },
+            "safety": { "$ref": "#/$defs/attributedEvents" }
+          }
+        },
+        "invalid_interactions": { "type": "integer", "minimum": 0 },
+        "approach_ticks": { "type": "integer", "minimum": 0 },
+        "extreme_pitch_ticks": { "type": "integer", "minimum": 0 },
+        "aim_alignment_ticks": { "type": "integer", "minimum": 0 },
+        "lock_on_ticks": { "type": "integer", "minimum": 0 },
+        "rewarded_lock_on_ticks": { "type": "integer", "minimum": 0 },
+        "attack_swings": { "type": "integer", "minimum": 0 },
+        "valid_attack_swings": { "type": "integer", "minimum": 0 },
+        "rewarded_attack_swings": { "type": "integer", "minimum": 0 },
+        "missed_attack_swings": { "type": "integer", "minimum": 0 },
+        "spam_attack_swings": { "type": "integer", "minimum": 0 },
+        "penalized_attack_swings": { "type": "integer", "minimum": 0 },
+        "hits_landed": { "type": "integer", "minimum": 0 },
+        "rewarded_hits": { "type": "integer", "minimum": 0 },
+        "shaping_reward": { "type": "number" },
+        "shaping_points": { "type": "number" },
+        "terminal_points": { "type": "number" },
+        "total_points": { "type": "number" },
+        "point_breakdown": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        }
+      }
+    },
+    "attributedEvents": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "damage_dealt": { "type": "number", "minimum": 0 },
+        "hits_landed": { "type": "integer", "minimum": 0 },
+        "crystals_placed": { "type": "integer", "minimum": 0 },
+        "crystals_destroyed": { "type": "integer", "minimum": 0 },
+        "crystals_exploded": { "type": "integer", "minimum": 0 },
+        "crystal_damage_events": { "type": "integer", "minimum": 0 },
+        "totems_forced": { "type": "integer", "minimum": 0 },
+        "crystal_totems_forced": { "type": "integer", "minimum": 0 },
+        "blocks_placed": { "type": "integer", "minimum": 0 },
+        "blocks_mined": { "type": "integer", "minimum": 0 },
+        "obsidian_placed": { "type": "integer", "minimum": 0 },
+        "tactical_obsidian_placed": { "type": "integer", "minimum": 0 },
+        "tactical_mine_place_sequences": { "type": "integer", "minimum": 0 },
+        "policy_built_crystal_chains_damaging": { "type": "integer", "minimum": 0 },
+        "first_hit_tick": { "type": "integer", "minimum": -1 },
+        "first_damage_tick": { "type": "integer", "minimum": -1 }
+      }
     },
     "actionBatch": {
       "allOf": [
@@ -78,7 +204,11 @@
                 "required": ["agent_id", "action"],
                 "properties": {
                   "agent_id": { "type": "string" },
-                  "action": { "$ref": "action-v1.schema.json" }
+                  "action_id": { "type": "integer", "minimum": 1 },
+                  "action": { "oneOf": [
+                    { "$ref": "action-v1.schema.json" },
+                    { "$ref": "action-v2.schema.json" }
+                  ] }
                 }
               }
             }

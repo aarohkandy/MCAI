@@ -10,14 +10,22 @@ const buffer = weightsBytes.buffer.slice(weightsBytes.byteOffset, weightsBytes.b
 const observation = JSON.parse(await readFile(observationPath, 'utf8'))
 const expected = JSON.parse(await readFile(expectedPath, 'utf8'))
 const policy = new globalThis.MCAIFlatRuntime.FlatPolicy(manifest, buffer)
-const actual = policy.step(observation)
+const encoded = globalThis.MCAIFlatRuntime.encodeObservation(observation)
 let maximumDifference = 0
+for (const [name, values] of Object.entries(expected.features)) {
+  compare(Array.from(encoded[name]), values, `features.${name}`)
+}
+const featureMaximumDifference = maximumDifference
+const actual = policy.step(observation)
 compare(actual.value, expected.value, 'value')
 compare(Array.from(actual.camera_mean), expected.camera_mean, 'camera_mean')
 compare(Array.from(actual.hidden), expected.hidden, 'hidden')
 for (const [name, values] of Object.entries(expected.logits)) compare(Array.from(actual.logits[name]), values, `logits.${name}`)
 if (maximumDifference > 1e-5) throw new Error(`flat policy parity exceeded 1e-5: ${maximumDifference}`)
-console.log(JSON.stringify({ flat_policy_maximum_difference: maximumDifference }))
+console.log(JSON.stringify({
+  feature_maximum_difference: featureMaximumDifference,
+  flat_policy_maximum_difference: maximumDifference
+}))
 
 function compare(actualValue, expectedValue, label) {
   if (Array.isArray(expectedValue)) {

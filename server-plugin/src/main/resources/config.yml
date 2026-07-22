@@ -1,9 +1,127 @@
 world-name: mcai_training
 control-port: 8765
-max-concurrent-pairs: 2
+max-concurrent-pairs: 4
 bot-name-prefix: MCAI_
-match-timeout-seconds: 120
+match-timeout-seconds: 35
 auto-pair-bots: true
-default-mode: sword
+default-mode: combined
 arena-spacing: 96
+# Legacy fixed-radius fallback. Leave the staged list below empty to use this.
+arena-radius: 5
+arena-depth: 12
+arena-height: 12
 shaping-scale: 1.0
+snapshot-interval-ticks: 10
+
+# Four physical lanes run sword retention, crystal retention, combined combat,
+# and combined terrain simultaneously. Each lane owns its evidence and stage.
+# Only policy-attributed damage/hits/crystal damage count as engagement; teacher
+# demonstrations remain visible in stats but can neither advance nor retain a
+# stage. A fresh 32-match window is required after every stage change.
+curriculum:
+  arena-radius-stages: [5, 6, 7, 8]
+  arena-radius-episode-thresholds: [0, 64, 256, 1024]
+  arena-radius-performance-window: 32
+  arena-radius-advance-engagement-rate: 0.75
+  arena-radius-advance-non-timeout-rate: 0.10
+  arena-radius-regress-engagement-rate: 0.50
+  arena-radius-regress-non-timeout-rate: 0.05
+  arena-radius-stage-change-cooldown-episodes: 32
+  spawn-min-separation: 3
+  spawn-max-separation: 5
+  spawn-yaw-jitter-degrees: 15.0
+
+# Dense curriculum rewards. One reward unit is shown as 100 spectator points.
+# Movement is a signed distance potential, so backing away cancels approach credit.
+reward:
+  max-per-tick: 0.25
+  movement-per-block: 0.004
+  max-movement-delta: 0.35
+  preferred-distance: 2.75
+  extreme-pitch-degrees: 60.0
+  extreme-pitch-grace-ticks: 20
+  extreme-pitch-penalty-per-tick: -0.0001
+  # Facing uses a signed potential: looking away pays back lock acquisition.
+  aim-alignment-per-potential: 0.012
+  max-aim-alignment-delta: 1.0
+  aim-alignment-range: 24.0
+  lock-on-dot: 0.94
+  lock-on-range: 5.0
+  lock-on-grace-ticks: 1
+  # Maintaining aim is useful telemetry, but no longer pays a passive tick farm.
+  lock-on-per-tick: 0.0
+  max-rewarded-lock-on-ticks: 0
+  attack-aim-dot: 0.70
+  attack-reach: 3.4
+  attack-cooldown-ticks: 8
+  valid-attack-swing: 0.004
+  max-rewarded-attack-swings: 40
+  missed-attack-swing: -0.002
+  spam-attack-swing: -0.001
+  max-penalized-attack-swings: 120
+  successful-hit: 0.045
+  max-rewarded-hits: 10
+  # Reward clean damage aggressively, but keep every equal trade negative.
+  damage-dealt-per-health: 0.180
+  damage-taken-per-health: -0.100
+  forced-totem: 0.12
+  own-totem: -0.12
+  # Only an assigned-opponent death caused by fresh policy-owned damage earns
+  # the win. The speed bonus uses the square of the fraction of the 35-second
+  # match remaining, so an immediate kill is worth 64, a halfway kill 31,
+  # and a last-second kill approximately 20. Stalling is a decisive failure.
+  policy-kill: 20.0
+  policy-kill-speed-bonus: 44.0
+  death-loss: -20.0
+  timeout-loss: -32.0
+  disengaged-loss: -32.0
+  double-ko-loss: -15.0
+  # Paid once per policy-detonated crystal that hurts its detonator.
+  own-crystal-self-hit: -0.900
+  # Per-health self-blast cost in addition to the once-per-crystal penalty.
+  # This keeps large equal crystal trades negative despite aggressive damage credit.
+  own-crystal-self-damage-per-health: -0.100
+  # A small setup reward is paid only for a policy-built, reachable offensive
+  # base in the assigned fighter corridor. The larger bonus requires that exact
+  # base to complete a policy place -> detonate -> opponent-damage chain.
+  obsidian-placed: 0.015
+  max-rewarded-obsidian: 4
+  obsidian-combo: 0.200
+  max-rewarded-obsidian-combos: 4
+  # Mining alone is neutral. This bonus requires a policy to clear natural
+  # stone and replace that exact combat-useful site with obsidian promptly.
+  tactical-mine-place-max-ticks: 120
+  tactical-mine-place: 0.030
+  max-rewarded-tactical-mine-place: 3
+  crystal-placed: 0.040
+  max-rewarded-crystal-placements: 8
+  crystal-destroyed: 0.020
+  max-rewarded-crystal-destructions: 8
+  crystal-exploded: 0.050
+  max-rewarded-crystal-explosions: 8
+  # Policy-only credit for a same-fighter place -> detonate -> opponent-damage chain.
+  crystal-combo-max-ticks: 40
+  crystal-combo-damage: 0.250
+  crystal-combo-pop: 0.500
+  max-rewarded-crystal-combos: 6
+  # Legacy keys retained for compatible configs; generic mining pays nothing.
+  useful-block-mined: 0.0
+  max-rewarded-mined-blocks: 0
+  invalid-interaction: -0.001
+  # Give a fighter two seconds to acquire its opponent, then charge an
+  # escalating cost for failing to make useful autonomous progress. Approaching,
+  # valid attacks, hits, crystals, and useful building reset this clock; random
+  # clicks, teacher actions, and camera motion do not.
+  inaction-grace-ticks: 40
+  inaction-penalty-per-tick: -0.0004
+  max-inaction-penalty-per-tick: -0.002
+  # Positive shaping starts losing value after ten seconds and reaches 35% at
+  # the 35-second timeout. Negative rewards and the large kill reward do not decay.
+  positive-reward-decay-start-ticks: 200
+  positive-reward-decay-end-ticks: 700
+  minimum-positive-reward-multiplier: 0.35
+  # After one second, every autonomous control tick pays an opportunity cost
+  # that ramps sharply toward the deadline. Teacher and safety steps are excluded.
+  fight-time-pressure-start-ticks: 20
+  fight-time-pressure-per-tick: -0.001
+  max-fight-time-pressure-per-tick: -0.010

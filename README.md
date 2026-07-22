@@ -41,7 +41,7 @@ CPU-only training will be much slower than GPU training. The load controller bac
 
 The non-Windows shell scripts are retained for development and WSL/Linux experimentation. `scripts/bootstrap-mac.sh` only runs trainer tests and parity checks; it does not make the Mac part of the training deployment.
 
-The trainer freezes a policy version while collecting each 8,192-agent-tick batch, rejects stale versions, saves `checkpoints/latest.pt` atomically, and snapshots every 100,000 accepted ticks. Per-run logs are kept under `runs/windows-*`; model checkpoints are kept separately under `checkpoints/`.
+The trainer freezes a policy version while collecting each 4,096-agent-tick batch, rejects stale versions, saves `checkpoints/latest.pt` atomically, and snapshots every 100,000 accepted ticks. A separate learner process optimizes while the live actor keeps fighting. Per-run logs are kept under `runs/windows-*`; model checkpoints are kept separately under `checkpoints/`.
 
 ## Eagler browser client
 

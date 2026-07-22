@@ -30,7 +30,17 @@ function Find-Java17 {
     $command = Get-Command java.exe -ErrorAction SilentlyContinue
     if ($command) { $candidates += $command.Source }
     foreach ($candidate in $candidates | Select-Object -Unique) {
-        $line = (& $candidate -version 2>&1 | Select-Object -First 1).ToString()
+        # Windows PowerShell 5.1 can promote a native program's stderr to a
+        # terminating NativeCommandError when the caller uses Stop. Java
+        # intentionally prints its version to stderr, so read it directly.
+        $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $startInfo.FileName = $candidate
+        $startInfo.Arguments = "-version"
+        $startInfo.UseShellExecute = $false
+        $startInfo.RedirectStandardError = $true
+        $process = [System.Diagnostics.Process]::Start($startInfo)
+        $line = $process.StandardError.ReadLine()
+        $process.WaitForExit()
         if ($line -match '"(?<major>\d+)' -and [int]$Matches.major -ge 17) { return $candidate }
     }
     return $null

@@ -19,6 +19,6 @@ commands:
     permission: mcai.admin
 permissions:
   mcai.spectate:
-    default: op
+    default: true
   mcai.admin:
     default: op

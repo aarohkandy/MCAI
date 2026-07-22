@@ -17,7 +17,8 @@ export class TrainerConnection extends EventEmitter {
   constructor(
     private readonly url: string,
     private readonly workerId: string,
-    private readonly agentIds: string[]
+    private readonly agentIds: string[],
+    private readonly capabilities: string[]
   ) {
     super()
   }
@@ -46,7 +47,10 @@ export class TrainerConnection extends EventEmitter {
 
   private open(): void {
     if (this.closed) return
-    const socket = new WebSocket(this.url)
+    // The trainer is localhost-only and messages are already binary
+    // MessagePack. Per-message deflate adds latency to every 50 ms decision
+    // without saving network time.
+    const socket = new WebSocket(this.url, { perMessageDeflate: false })
     socket.binaryType = 'arraybuffer'
     socket.on('open', () => {
       this.socket = socket
@@ -56,7 +60,7 @@ export class TrainerConnection extends EventEmitter {
         sequence: 0,
         worker_id: this.workerId,
         agents: this.agentIds,
-        capabilities: ['minecraft-1.12.2', 'structured-state', 'legal-controls-v1']
+        capabilities: this.capabilities
       }
       socket.send(encode(hello))
       this.emit('ready')

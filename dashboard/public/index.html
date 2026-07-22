@@ -24,7 +24,7 @@
     </section>
 
     <section class="progress-section" aria-labelledby="progress-label">
-      <div class="progress-label"><span id="progress-label">Next PPO update</span><strong id="progress-value">0 / 8,192</strong></div>
+      <div class="progress-label"><span id="progress-label">Next PPO update</span><strong id="progress-value">0 / 4,096</strong></div>
       <div class="progress-track"><div id="progress-bar" class="progress-bar"></div></div>
     </section>
 
@@ -46,7 +46,20 @@
             <div><dt>Value loss</dt><dd id="value-loss">—</dd></div>
             <div><dt>Entropy</dt><dd id="entropy">—</dd></div>
             <div><dt>Approx. KL</dt><dd id="kl">—</dd></div>
+            <div><dt>Mean reward</dt><dd id="reward-mean">—</dd></div>
+            <div><dt>Reward clips</dt><dd id="reward-clips">—</dd></div>
           </dl>
+        </section>
+        <section>
+          <h2>Adaptive rewards</h2>
+          <dl class="metrics">
+            <div><dt>Damage pressure</dt><dd id="weight-damage">1.00x</dd></div>
+            <div><dt>Crystal play</dt><dd id="weight-crystal">1.00x</dd></div>
+            <div><dt>Finish speed</dt><dd id="weight-speed">1.00x</dd></div>
+            <div><dt>Activity</dt><dd id="weight-activity">1.00x</dd></div>
+            <div><dt>Building</dt><dd id="weight-building">1.00x</dd></div>
+          </dl>
+          <p id="reward-controller">Waiting for the automatic controller.</p>
         </section>
         <section>
           <h2>Safety</h2>

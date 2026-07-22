@@ -19,14 +19,36 @@ from .service import serve
 
 
 def main() -> None:
+    ppo_defaults = PPOConfig()
     parser = argparse.ArgumentParser(prog="mcai-trainer")
     subparsers = parser.add_subparsers(dest="command", required=True)
     server = subparsers.add_parser("serve", help="run inference and online recurrent PPO")
     server.add_argument("--host", default="0.0.0.0")
     server.add_argument("--port", type=int, default=8766)
     server.add_argument("--checkpoints", type=Path, default=Path("checkpoints"))
-    server.add_argument("--rollout-steps", type=int, default=8192)
+    server.add_argument("--rollout-steps", type=int, default=ppo_defaults.rollout_agent_ticks)
+    server.add_argument("--learning-rate", type=float, default=ppo_defaults.learning_rate)
+    server.add_argument("--minibatch-samples", type=int, default=ppo_defaults.minibatch_samples)
+    server.add_argument("--optimization-epochs", type=int, default=ppo_defaults.optimization_epochs)
+    server.add_argument(
+        "--learner-cpu-threads", type=int,
+        default=ppo_defaults.learner_cpu_threads,
+        help="Torch threads used only by the isolated PPO learner process",
+    )
+    server.add_argument("--target-kl", type=float, default=ppo_defaults.target_kl)
+    server.add_argument("--arena-host", default="127.0.0.1",
+                        help="localhost arena-control host for adaptive reward profiles")
+    server.add_argument("--arena-port", type=int, default=8765,
+                        help="arena-control port for adaptive reward profiles")
+    server.add_argument(
+        "--disable-adaptive-rewards", action="store_true",
+        help="keep the current server reward profile fixed",
+    )
     server.add_argument("--deterministic", action="store_true")
+    server.add_argument(
+        "--freeze-policy", action="store_true",
+        help="serve inference without collecting PPO rollouts or writing checkpoints",
+    )
     server.add_argument("--imitation-data", type=Path,
                         help="whole-match JSONL replayed at 10%%, decaying over five million ticks")
     server.add_argument("--cpu-threads", type=int, default=0,
@@ -58,13 +80,23 @@ def main() -> None:
     promote.add_argument("--checkpoints", type=Path, default=Path("checkpoints"))
     arguments = parser.parse_args()
     if arguments.command == "serve":
-        ppo = PPOConfig(rollout_agent_ticks=arguments.rollout_steps)
+        ppo = PPOConfig(
+            rollout_agent_ticks=arguments.rollout_steps,
+            learning_rate=arguments.learning_rate,
+            minibatch_samples=arguments.minibatch_samples,
+            optimization_epochs=arguments.optimization_epochs,
+            learner_cpu_threads=max(1, arguments.learner_cpu_threads),
+            target_kl=arguments.target_kl,
+        )
         service = ServiceConfig(
             host=arguments.host, port=arguments.port, checkpoint_dir=arguments.checkpoints,
             deterministic_inference=arguments.deterministic, cpu_threads=arguments.cpu_threads,
+            arena_host=arguments.arena_host, arena_port=arguments.arena_port,
+            adaptive_rewards=not arguments.disable_adaptive_rewards,
         )
         asyncio.run(serve(
-            ppo, service, arguments.imitation_data, arguments.initialize_from, arguments.exploiter_target
+            ppo, service, arguments.imitation_data, arguments.initialize_from,
+            arguments.exploiter_target, arguments.freeze_policy,
         ))
     elif arguments.command == "clone":
         metrics = behavior_clone(

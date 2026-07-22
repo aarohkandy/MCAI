@@ -1,0 +1,39 @@
+{
+  "cooldowns": {
+    "activity": 0,
+    "building": 2,
+    "crystal": 0,
+    "damage": 2,
+    "terminal_speed": 3
+  },
+  "ewma": {
+    "building_density": 0.00048099058845012374,
+    "crystal_attempt_density": 0.0017475051848088652,
+    "crystal_conversion": 0.5772801007876638,
+    "crystal_starts": 16.0602092789569,
+    "damage_efficiency": 0.5153115171502105,
+    "fast_finish_rate": 0.1858004654432122,
+    "hit_density": 0.03111252881498637,
+    "inaction_density": 0.026572226300194887,
+    "terminal_evidence": 36.47411954137686
+  },
+  "generation": 31,
+  "last_reason": "building: policy-owned building/mining frequency is below target",
+  "multipliers": {
+    "activity": 0.8,
+    "building": 1.8,
+    "crystal": 2.0,
+    "damage": 1.6,
+    "terminal_speed": 1.75
+  },
+  "observations": 1256,
+  "pending_change": null,
+  "schema_version": 1,
+  "streaks": {
+    "activity": -1,
+    "building": 1,
+    "crystal": 0,
+    "damage": 1,
+    "terminal_speed": 0
+  }
+}

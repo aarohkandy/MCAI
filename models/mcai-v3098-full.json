@@ -1,0 +1,31 @@
+{
+  "name": "mcai-v3098-full",
+  "description": "Full resumable checkpoint preserved from the live four-arena policy when training was paused.",
+  "policy_version": 3098,
+  "total_agent_ticks": 9914418,
+  "rollout_generation": 1341,
+  "architecture_version": 2,
+  "feature_contract_version": 3,
+  "policy_tensors": 105,
+  "optimizer_present": true,
+  "online_imitation_records": 8192,
+  "elite_replay_records": 2026,
+  "file": "mcai-v3098-full.pt",
+  "file_size_bytes": 197786541,
+  "sha256": "9d0ad223b04fe5a8659f983611b8d1b4968293a3182a0ed09f701e86fb4c8d33",
+  "auxiliary_files": [
+    {
+      "file": "mcai-v3098-league.json",
+      "restore_to": "checkpoints/league.json",
+      "file_size_bytes": 346589,
+      "sha256": "94df182f83085193f6468b5f687db98c3fc3f813915f8dd784e7f4d42bb371e1"
+    },
+    {
+      "file": "mcai-v3098-adaptive-reward.json",
+      "restore_to": "checkpoints/adaptive-reward-state.json",
+      "file_size_bytes": 1012,
+      "sha256": "7453f401507300dc10375609c11182f3dc650b47a3507e59af841942183055e9"
+    }
+  ],
+  "checkpoint_last_modified": "2026-07-22T09:05:56.6068069-07:00"
+}

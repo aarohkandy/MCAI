@@ -10,7 +10,10 @@ from typing import Any
 import torch
 from torch import nn
 
-from .distribution import actions_from_wire
+from .distribution import (
+    CAMERA_SCALE, _hierarchical_mask, action_logits, actions_from_wire,
+    camera_action_mean,
+)
 from .features import batch_observations, categorical_masks
 from .model import CombatPolicy
 
@@ -90,17 +93,128 @@ def imitation_loss(policy: CombatPolicy, records: list[dict[str, Any]], device: 
     output = policy(features, policy.initial_hidden(len(records), device))
     masks = categorical_masks(features)
     losses: list[torch.Tensor] = []
+    names: list[str] = []
     for name, logits in output.logits.items():
-        mask = masks[name]
-        if name == "release_use":
-            mask = mask.clone()
-            mask[:, 1] &= actions.categorical["primary"] < 2
-        masked = logits.masked_fill(~mask, -1e9)
-        losses.append(nn.functional.cross_entropy(masked, actions.categorical[name]))
-    camera_scale = torch.tensor((math.pi, math.pi / 2), device=device)
+        mask = _hierarchical_mask(name, logits, masks, actions.categorical, features)
+        masked = action_logits(name, logits, features).masked_fill(~mask, -1e9)
+        losses.append(nn.functional.cross_entropy(
+            masked, actions.categorical[name], reduction="none"
+        ))
+        names.append(name)
+    camera_scale = torch.tensor(CAMERA_SCALE, device=device)
     target = torch.atanh((actions.camera / camera_scale).clamp(-0.999, 0.999))
-    losses.append(nn.functional.smooth_l1_loss(output.camera_mean, target))
-    return torch.stack(losses).mean()
+    losses.append(nn.functional.smooth_l1_loss(
+        camera_action_mean(output.camera_mean, features), target, reduction="none"
+    ).mean(dim=-1))
+    names.append("camera")
+    stacked = torch.stack(losses, dim=1)
+    weights = _imitation_head_weights(records, names, device)
+    return (stacked * weights).sum() / weights.sum().clamp_min(1.0)
+
+
+def classify_crystal_teacher_action(action: Any) -> str | None:
+    """Return the useful phase represented by a crystal teacher control.
+
+    Passive waits/no-ops are deliberately excluded. Training those abundant
+    records taught the policy to pause between placement and detonation.
+    """
+    if not isinstance(action, dict):
+        return None
+    primary = str(action.get("primary", "none"))
+    if primary == "attack":
+        return "detonate"
+    if primary in {"use_main", "use_offhand"}:
+        return "place"
+    try:
+        hotbar = int(action.get("hotbar", -1))
+        yaw = float(action.get("yaw_delta", 0.0))
+        pitch = float(action.get("pitch_delta", 0.0))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if hotbar >= 0:
+        return "select"
+    if abs(yaw) > 1e-5 or abs(pitch) > 1e-5:
+        return "aim"
+    return None
+
+
+def _imitation_head_weights(
+    records: list[dict[str, Any]], names: list[str], device: torch.device,
+) -> torch.Tensor:
+    weights = torch.ones((len(records), len(names)), dtype=torch.float32, device=device)
+    indices = {name: index for index, name in enumerate(names)}
+    low_relevance = (
+        "forward", "strafe", "jump", "sprint", "sneak", "release_use", "swap_offhand",
+    )
+    phase_emphasis = {
+        "aim": {"camera": 4.0, "primary": 0.5, "hotbar": 0.5},
+        "select": {"hotbar": 4.0, "camera": 2.0, "primary": 0.5},
+        "place": {"primary": 4.0, "hotbar": 3.0, "camera": 2.0},
+        "detonate": {"primary": 4.0, "camera": 3.0, "hotbar": 0.5},
+    }
+    for row, record in enumerate(records):
+        if str(record.get("execution_source", "")) == "elite_policy":
+            try:
+                quality = float(record.get("elite_quality", 1.0))
+            except (TypeError, ValueError, OverflowError):
+                quality = 0.25
+            if not math.isfinite(quality):
+                quality = 0.25
+            # Fast terminal wins carry a larger arena reward and therefore a
+            # higher replay quality.  Keep slower verified wins useful, but do
+            # not let them anchor the actor as strongly as the best sequences.
+            weights[row] *= max(0.25, min(1.0, quality))
+        action = record.get("action")
+        if not isinstance(action, dict) or int(action.get("schema_version", 1)) != 2:
+            # A resolved V1 demonstration has no hierarchical intent/target
+            # ownership. Keep its legal mechanic controls without inventing a
+            # candidate index that was never executed.
+            for name in ("intent", "target_index"):
+                if name in indices:
+                    weights[row, indices[name]] = 0.0
+        source = str(record.get("execution_source", ""))
+        if source == "teacher_block":
+            # A terrain demonstration normally holds every movement/control
+            # head at no-op while it aims, selects obsidian, and clicks. Giving
+            # all of those no-ops equal imitation weight taught the policy to
+            # stand still. Preserve the three useful decisions while making
+            # incidental locomotion/release/swap supervision nearly inert.
+            for name in low_relevance:
+                if name in indices:
+                    weights[row, indices[name]] = 0.05
+            for name in ("primary", "hotbar", "camera"):
+                if name in indices:
+                    weights[row, indices[name]] = 0.5
+            action = record.get("action")
+            action = action if isinstance(action, dict) else {}
+            primary = str(action.get("primary", "none"))
+            try:
+                hotbar = int(action.get("hotbar", -1))
+                yaw = float(action.get("yaw_delta", 0.0))
+                pitch = float(action.get("pitch_delta", 0.0))
+            except (TypeError, ValueError, OverflowError):
+                hotbar, yaw, pitch = -1, 0.0, 0.0
+            if primary in {"attack", "use_main", "use_offhand"} and "primary" in indices:
+                weights[row, indices["primary"]] = 4.0
+            if hotbar >= 0 and "hotbar" in indices:
+                weights[row, indices["hotbar"]] = 4.0
+            if (abs(yaw) > 1e-5 or abs(pitch) > 1e-5) and "camera" in indices:
+                weights[row, indices["camera"]] = 4.0
+            continue
+        if source != "teacher_crystal":
+            continue
+        phase = str(record.get("teacher_phase") or "")
+        if phase not in phase_emphasis:
+            phase = classify_crystal_teacher_action(record.get("action")) or ""
+        if phase not in phase_emphasis:
+            continue
+        for name in low_relevance:
+            if name in indices:
+                weights[row, indices[name]] = 0.2
+        for name, value in phase_emphasis[phase].items():
+            if name in indices:
+                weights[row, indices[name]] = value
+    return weights
 
 
 @torch.no_grad()

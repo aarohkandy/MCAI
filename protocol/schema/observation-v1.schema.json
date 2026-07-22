@@ -16,6 +16,11 @@
         "tick": { "type": "integer", "minimum": 0 },
         "policy_version": { "type": "integer", "minimum": 0 },
         "arena_seed": { "type": "integer" },
+        "mode": { "type": "string", "enum": ["sword", "crystal", "combined", "terrain"] },
+        "lane": { "type": "string", "enum": ["sword_retention", "crystal_retention", "combined", "terrain"] },
+        "arena_radius": { "type": "integer", "minimum": 1 },
+        "curriculum_stage": { "type": "integer", "minimum": 1 },
+        "curriculum_stage_count": { "type": "integer", "minimum": 1 },
         "action_delay_ticks": { "type": "integer", "minimum": 0 },
         "observation_delay_ticks": { "type": "integer", "minimum": 0 }
       }
@@ -94,6 +99,7 @@
         "use_ticks": { "type": "integer", "minimum": 0 },
         "mining_progress": { "type": "number", "minimum": 0, "maximum": 1 },
         "selected_hotbar": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "mainhand": { "$ref": "#/$defs/item" },
         "hotbar": { "type": "array", "minItems": 9, "maxItems": 9, "items": { "$ref": "#/$defs/item" } },
         "offhand": { "$ref": "#/$defs/item" },
         "armor": { "$ref": "#/$defs/armor" },
@@ -120,9 +126,22 @@
       "properties": {
         "relative_position": { "$ref": "#/$defs/vec3" },
         "relative_velocity": { "$ref": "#/$defs/vec3" },
+        "body_relative_position": { "$ref": "#/$defs/vec3" },
+        "body_relative_velocity": { "$ref": "#/$defs/vec3" },
+        "distance": { "type": "number", "minimum": 0 },
+        "horizontal_distance": { "type": "number", "minimum": 0 },
+        "bearing_error": { "type": "number", "minimum": -3.141592653589793, "maximum": 3.141592653589793 },
+        "pitch_error": { "type": "number", "minimum": -3.141592653589793, "maximum": 3.141592653589793 },
+        "closing_speed": { "type": "number" },
+        "within_melee_reach": { "type": "boolean" },
+        "aim_alignment": { "type": "number", "minimum": -1, "maximum": 1 },
+        "facing_toward_self": { "type": "number", "minimum": -1, "maximum": 1 },
         "yaw": { "type": "number" },
+        "head_yaw": { "type": "number" },
         "pitch": { "type": "number" },
         "health": { "type": ["number", "null"] },
+        "absorption": { "type": "number", "minimum": 0 },
+        "server_state_age_ticks": { "type": ["integer", "null"], "minimum": 0 },
         "hurt_time": { "type": "number" },
         "on_ground": { "type": "boolean" },
         "line_of_sight": { "type": "boolean" },
@@ -139,6 +158,8 @@
         "kind": { "type": "string" },
         "relative_position": { "$ref": "#/$defs/vec3" },
         "relative_velocity": { "$ref": "#/$defs/vec3" },
+        "body_relative_position": { "$ref": "#/$defs/vec3" },
+        "body_relative_velocity": { "$ref": "#/$defs/vec3" },
         "age_ticks": { "type": "integer", "minimum": 0 },
         "distance": { "type": "number", "minimum": 0 },
         "raycastable": { "type": "boolean" }
@@ -155,11 +176,14 @@
       "properties": {
         "name": { "type": "string" },
         "relative_position": { "$ref": "#/$defs/vec3" },
+        "body_relative_position": { "$ref": "#/$defs/vec3" },
+        "body_relative_velocity": { "$ref": "#/$defs/vec3" },
         "collision": { "type": "string", "enum": ["empty", "solid", "liquid", "partial"] },
         "hardness": { "type": "number" },
         "replaceable": { "type": "boolean" },
         "break_progress": { "type": "number", "minimum": 0, "maximum": 1 },
         "crystal_clearance": { "type": "boolean" },
+        "tactical_placement_target": { "type": "boolean" },
         "exposed_faces": { "type": "integer", "minimum": 0, "maximum": 6 },
         "distance": { "type": "number", "minimum": 0 },
         "within_reach": { "type": "boolean" },
@@ -173,11 +197,16 @@
       "required": ["attack", "use_main", "use_offhand", "release_use", "swap_offhand", "hotbar"],
       "properties": {
         "attack": { "type": "boolean" },
+        "combat_attack_ready": { "type": "boolean" },
+        "crystal_place_ready": { "type": "boolean" },
+        "crystal_attack_ready": { "type": "boolean" },
+        "tactical_block_break_ready": { "type": "boolean" },
+        "tactical_block_place_ready": { "type": "boolean" },
         "use_main": { "type": "boolean" },
         "use_offhand": { "type": "boolean" },
         "release_use": { "type": "boolean" },
         "swap_offhand": { "type": "boolean" },
-        "hotbar": { "type": "array", "minItems": 10, "maxItems": 10, "items": { "type": "boolean" } }
+        "hotbar": { "type": "array", "minItems": 9, "maxItems": 9, "items": { "type": "boolean" } }
       }
     }
   }
