@@ -1,13 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { decode, encode } from '@msgpack/msgpack'
 import WebSocket from 'ws'
-import {
-  SCHEMA_VERSION,
-  type ActionBatch,
-  type HelloMessage,
-  type StepBatch,
-  type WireMessage
-} from './contracts.js'
+import { SCHEMA_VERSION, type ActionBatch, type HelloMessage, type StepBatch, type WireMessage } from './contracts.js'
 
 export class TrainerConnection extends EventEmitter {
   private socket: WebSocket | null = null

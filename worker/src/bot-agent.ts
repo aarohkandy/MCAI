@@ -1,10 +1,5 @@
 import mineflayer, { type Bot } from 'mineflayer'
-import {
-  SCHEMA_VERSION,
-  type ActionV1,
-  type ObservationV1,
-  type StepFeedback
-} from './contracts.js'
+import { type ActionV1, type ObservationV1, type StepFeedback } from './contracts.js'
 import { LegalControlAdapter } from './legal-controls.js'
 import { ObservationBuilder, type MatchContext } from './observation.js'
 
@@ -51,7 +46,7 @@ export class BotAgent {
       }
       this.controls.emergencyStop()
     })
-    this.bot.on('kicked', reason => this.controls.emergencyStop())
+    this.bot.on('kicked', () => this.controls.emergencyStop())
     this.bot.on('end', () => {
       this.controls.emergencyStop()
       this.options.onDisconnected?.(this)
@@ -77,7 +72,8 @@ export class BotAgent {
     if (typeof context.policy_version === 'number') this.policyVersion = context.policy_version
     if (typeof context.arena_seed === 'number') this.arenaSeed = context.arena_seed
     if (typeof context.action_delay_ticks === 'number') this.actionDelayTicks = context.action_delay_ticks
-    if (typeof context.observation_delay_ticks === 'number') this.observationDelayTicks = context.observation_delay_ticks
+    if (typeof context.observation_delay_ticks === 'number')
+      this.observationDelayTicks = context.observation_delay_ticks
   }
 
   setPolicyVersion(version: number): void {
@@ -152,8 +148,4 @@ export class BotAgent {
     if (delta < 0 && !this.arenaManaged) this.feedback.reward += 0.02 * delta
     this.previousHealth = health
   }
-}
-
-export function workerCapabilities(): string[] {
-  return [`schema-${SCHEMA_VERSION}`, 'legal-control-allowlist', 'crosshair-placement']
 }

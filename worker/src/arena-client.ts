@@ -21,7 +21,10 @@ export class ArenaClient extends EventEmitter {
   private sequence = 0
   private pending = new Map<number, PendingRequest>()
 
-  constructor(private readonly host = '127.0.0.1', private readonly port = 8765) {
+  constructor(
+    private readonly host = '127.0.0.1',
+    private readonly port = 8765
+  ) {
     super()
   }
 

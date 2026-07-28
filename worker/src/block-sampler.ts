@@ -6,14 +6,21 @@ import { distance, egocentric, subtract, toVec3Value } from './math.js'
 type CachedSlot = Omit<BlockSlot, 'sample_age_ticks'> & { sampled_tick: number }
 
 const FACE_VECTORS = [
-  new Vec3(1, 0, 0), new Vec3(-1, 0, 0), new Vec3(0, 1, 0),
-  new Vec3(0, -1, 0), new Vec3(0, 0, 1), new Vec3(0, 0, -1)
+  new Vec3(1, 0, 0),
+  new Vec3(-1, 0, 0),
+  new Vec3(0, 1, 0),
+  new Vec3(0, -1, 0),
+  new Vec3(0, 0, 1),
+  new Vec3(0, 0, -1)
 ]
 
 export class BlockSampler {
   private cache: CachedSlot[] = []
 
-  constructor(private readonly bot: Bot, private readonly refreshTicks = 5) {}
+  constructor(
+    private readonly bot: Bot,
+    private readonly refreshTicks = 5
+  ) {}
 
   sample(tick: number, opponentPosition?: Vec3Value): BlockSlot[] {
     if (this.cache.length === 0 || tick - this.cache[0].sampled_tick >= this.refreshTicks) {
@@ -52,7 +59,9 @@ export class BlockSampler {
             if (!relevant) continue
             const world = toVec3Value(position)
             const dist = distance(self, world)
-            const clearance = isCrystalBase(block) && isReplaceable(this.bot.blockAt(position.offset(0, 1, 0), false)) &&
+            const clearance =
+              isCrystalBase(block) &&
+              isReplaceable(this.bot.blockAt(position.offset(0, 1, 0), false)) &&
               isReplaceable(this.bot.blockAt(position.offset(0, 2, 0), false))
             const cursor = Boolean(cursorBlock && cursorBlock.position.equals(position))
             const placementBonus = clearance ? -4 : isCrystalBase(block) ? -2 : 0
@@ -85,10 +94,20 @@ export class BlockSampler {
 function isReplaceable(block: any): boolean {
   if (!block) return true
   const name = String(block.name ?? '')
-  return block.boundingBox === 'empty' || [
-    'air', 'tall_grass', 'double_plant', 'fire', 'snow_layer', 'water', 'flowing_water',
-    'lava', 'flowing_lava'
-  ].includes(name)
+  return (
+    block.boundingBox === 'empty' ||
+    [
+      'air',
+      'tall_grass',
+      'double_plant',
+      'fire',
+      'snow_layer',
+      'water',
+      'flowing_water',
+      'lava',
+      'flowing_lava'
+    ].includes(name)
+  )
 }
 
 function isCrystalBase(block: any): boolean {

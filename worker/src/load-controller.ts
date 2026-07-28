@@ -18,7 +18,10 @@ export class LoadController {
   private timer: NodeJS.Timeout | null = null
   private stopped = false
 
-  constructor(private readonly arena: ArenaClient, private readonly options: LoadControllerOptions) {
+  constructor(
+    private readonly arena: ArenaClient,
+    private readonly options: LoadControllerOptions
+  ) {
     this.pairs = Math.max(1, Math.min(options.initialPairs, options.maximumPairs))
     this.intervalMs = options.sampleIntervalMs ?? 30_000
     this.stableSamplesBeforeIncrease = options.stableSamplesBeforeIncrease ?? 10
@@ -41,10 +44,11 @@ export class LoadController {
   }
 
   evaluate(status: Record<string, unknown>, eventLoopP95Ms: number): 'hold' | 'increase' | 'decrease' {
-    const overloaded = Number(status.estimated_tps ?? 0) < 19.5
-      || Number(status.p95_tick_ms ?? Number.POSITIVE_INFINITY) > 55
-      || Number(status.memory_fraction ?? 1) > 0.8
-      || eventLoopP95Ms > 10
+    const overloaded =
+      Number(status.estimated_tps ?? 0) < 19.5 ||
+      Number(status.p95_tick_ms ?? Number.POSITIVE_INFINITY) > 55 ||
+      Number(status.memory_fraction ?? 1) > 0.8 ||
+      eventLoopP95Ms > 10
     if (overloaded) {
       this.stableSamples = 0
       if (this.pairs > 1) {

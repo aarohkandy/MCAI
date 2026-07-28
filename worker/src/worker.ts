@@ -1,10 +1,6 @@
 import os from 'node:os'
 import { randomUUID } from 'node:crypto'
-import {
-  SCHEMA_VERSION,
-  type ActionBatch,
-  type StepBatch
-} from './contracts.js'
+import { SCHEMA_VERSION, type ActionBatch, type StepBatch } from './contracts.js'
 import { ArenaClient, type ArenaEvent } from './arena-client.js'
 import { BotAgent } from './bot-agent.js'
 import { LoadController } from './load-controller.js'
@@ -41,7 +37,11 @@ export class RolloutWorker {
   constructor(private readonly options: WorkerOptions) {
     this.agents = Array.from({ length: options.botCount }, (_, index) => this.createAgent(index))
     this.byId = new Map(this.agents.map(agent => [agent.id, agent]))
-    this.trainer = new TrainerConnection(options.trainerUrl, options.workerId, this.agents.map(agent => agent.id))
+    this.trainer = new TrainerConnection(
+      options.trainerUrl,
+      options.workerId,
+      this.agents.map(agent => agent.id)
+    )
     this.arena = new ArenaClient(options.arenaHost, options.arenaPort)
     this.loadController = new LoadController(this.arena, {
       initialPairs: Math.min(2, Math.max(1, Math.floor(options.botCount / 2))),
@@ -51,8 +51,12 @@ export class RolloutWorker {
 
   async start(): Promise<void> {
     this.stopped = false
-    this.trainer.on('ready', () => { this.trainerReady = true })
-    this.trainer.on('disconnected', () => { this.trainerReady = false })
+    this.trainer.on('ready', () => {
+      this.trainerReady = true
+    })
+    this.trainer.on('disconnected', () => {
+      this.trainerReady = false
+    })
     this.trainer.on('actions', (batch: ActionBatch) => this.onActions(batch))
     this.trainer.on('error', error => console.warn('[trainer]', String(error)))
     this.trainer.connect()
@@ -100,10 +104,12 @@ export class RolloutWorker {
       const replacement = this.createAgent(index)
       this.agents[index] = replacement
       this.byId.set(replacement.id, replacement)
-      void this.arena.request('register_agent', {
-        agent_id: replacement.id,
-        username: replacement.options.username
-      }).catch(() => undefined)
+      void this.arena
+        .request('register_agent', {
+          agent_id: replacement.id,
+          username: replacement.options.username
+        })
+        .catch(() => undefined)
     }, 2_000)
     this.reconnectingAgents.set(agent.id, timer)
   }
@@ -145,18 +151,20 @@ export class RolloutWorker {
     try {
       const ready = this.agents.filter(agent => agent.isSpawned())
       if (ready.length === 0) return
-      const steps = await Promise.all(ready.map(async agent => {
-        const { observation, feedback } = await agent.step()
-        if (!this.trainerReady) agent.queueAction(scriptedAction(observation, styleFor(agent.id)))
-        return {
-          agent_id: agent.id,
-          observation,
-          reward: feedback.reward,
-          terminated: feedback.terminated,
-          truncated: feedback.truncated,
-          info: feedback.info
-        }
-      }))
+      const steps = await Promise.all(
+        ready.map(async agent => {
+          const { observation, feedback } = await agent.step()
+          if (!this.trainerReady) agent.queueAction(scriptedAction(observation, styleFor(agent.id)))
+          return {
+            agent_id: agent.id,
+            observation,
+            reward: feedback.reward,
+            terminated: feedback.terminated,
+            truncated: feedback.truncated,
+            info: feedback.info
+          }
+        })
+      )
       const batch: StepBatch = {
         schema_version: SCHEMA_VERSION,
         type: 'step_batch',
@@ -180,7 +188,7 @@ export class RolloutWorker {
   private onArenaEvent(event: ArenaEvent): void {
     if (event.event === 'match_started') {
       const payload = event.payload ?? {}
-      const targets = event.agent_id ? [this.byId.get(event.agent_id)].filter(Boolean) as BotAgent[] : this.agents
+      const targets = event.agent_id ? ([this.byId.get(event.agent_id)].filter(Boolean) as BotAgent[]) : this.agents
       for (const agent of targets) {
         agent.setMatch({
           episode_id: String(payload.episode_id ?? randomUUID()),

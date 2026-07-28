@@ -10,7 +10,7 @@ import {
   type Vec3Value
 } from './contracts.js'
 import { BlockSampler } from './block-sampler.js'
-import { EMPTY_ITEM, itemState } from './items.js'
+import { itemState } from './items.js'
 import { distance, egocentric, subtract, toVec3Value } from './math.js'
 
 export type MatchContext = ObservationV1['match']
@@ -84,7 +84,8 @@ export class ObservationBuilder {
       health: typeof entity.health === 'number' ? entity.health : metadataHealth(entity),
       hurt_time: entityHurtTime(entity),
       on_ground: Boolean(entity.onGround),
-      line_of_sight: typeof (this.bot as any).canSeeEntity === 'function' ? Boolean((this.bot as any).canSeeEntity(entity)) : false,
+      line_of_sight:
+        typeof (this.bot as any).canSeeEntity === 'function' ? Boolean((this.bot as any).canSeeEntity(entity)) : false,
       mainhand: itemState(equipment[0] ?? entity.heldItem),
       offhand: itemState(equipment[1]),
       armor: [equipment[5], equipment[4], equipment[3], equipment[2]].map(itemState)
@@ -127,9 +128,11 @@ export class ObservationBuilder {
 function nearestOpponent(bot: Bot): any | null {
   const self = bot.entity?.position
   if (!self) return null
-  return Object.values(bot.entities)
-    .filter((entity: any) => entity && entity.type === 'player' && entity.username !== bot.username)
-    .sort((a: any, b: any) => self.distanceTo(a.position) - self.distanceTo(b.position) || a.id - b.id)[0] ?? null
+  return (
+    Object.values(bot.entities)
+      .filter((entity: any) => entity && entity.type === 'player' && entity.username !== bot.username)
+      .sort((a: any, b: any) => self.distanceTo(a.position) - self.distanceTo(b.position) || a.id - b.id)[0] ?? null
+  )
 }
 
 function isCombatEntity(entity: any): boolean {
@@ -165,7 +168,8 @@ function metadataHealth(entity: any): number | null {
   const metadata = entity?.metadata
   if (!Array.isArray(metadata)) return null
   for (const entry of metadata) {
-    if (entry && typeof entry === 'object' && entry.key === 'health' && typeof entry.value === 'number') return entry.value
+    if (entry && typeof entry === 'object' && entry.key === 'health' && typeof entry.value === 'number')
+      return entry.value
   }
   return null
 }
@@ -175,7 +179,9 @@ function raycastState(bot: Bot): RaycastState {
   const entity = bot.entityAtCursor?.(6)
   const block = bot.blockAtCursor?.(6)
   const entityDistance = entity?.position ? eye.distanceTo(entity.position) : Number.POSITIVE_INFINITY
-  const blockDistance = block?.position ? eye.distanceTo(block.position.offset(0.5, 0.5, 0.5)) : Number.POSITIVE_INFINITY
+  const blockDistance = block?.position
+    ? eye.distanceTo(block.position.offset(0.5, 0.5, 0.5))
+    : Number.POSITIVE_INFINITY
   if (entity && entityDistance <= blockDistance) {
     return { kind: 'entity', distance: entityDistance, block_name: '', entity_kind: entityKind(entity) }
   }
@@ -198,8 +204,4 @@ function actionMask(bot: Bot, control: ControlTelemetry): ActionMask {
 
 function finite(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
-}
-
-export function emptyEquipment(): ReturnType<typeof itemState> {
-  return { ...EMPTY_ITEM }
 }

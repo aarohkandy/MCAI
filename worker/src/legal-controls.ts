@@ -113,13 +113,16 @@ export class LegalControlAdapter {
     const expectedMilliseconds = Number(this.bot.digTime?.(block) ?? 50)
     this.miningExpectedTicks = Math.max(1, Math.ceil(expectedMilliseconds / 50))
     this.record('start_digging', `${block.position.x},${block.position.y},${block.position.z}`)
-    void this.bot.dig(block, 'ignore').then(() => {
-      this.digging = false
-      this.miningProgress = 1
-    }).catch(() => {
-      this.digging = false
-      this.miningProgress = 0
-    })
+    void this.bot
+      .dig(block, 'ignore')
+      .then(() => {
+        this.digging = false
+        this.miningProgress = 1
+      })
+      .catch(() => {
+        this.digging = false
+        this.miningProgress = 0
+      })
   }
 
   private async useHand(offhand: boolean): Promise<void> {
@@ -128,14 +131,18 @@ export class LegalControlAdapter {
     const target = this.crosshairBlock()
     if (!offhand && target && name === 'obsidian') {
       await (this.bot as any)._placeBlockWithOptions(target.block, target.face, {
-        forceLook: 'ignore', swingArm: 'right', delta: target.cursor
+        forceLook: 'ignore',
+        swingArm: 'right',
+        delta: target.cursor
       })
       this.record('place_from_crosshair', name)
       return
     }
     if (!offhand && target && name.includes('crystal')) {
       await (this.bot as any)._genericPlace(target.block, target.face, {
-        forceLook: 'ignore', swingArm: 'right', delta: target.cursor
+        forceLook: 'ignore',
+        swingArm: 'right',
+        delta: target.cursor
       })
       this.record('activate_block_from_crosshair', name)
       return
@@ -159,8 +166,12 @@ export class LegalControlAdapter {
     const block = this.bot.blockAt(hit.position, false)
     if (!block) return null
     const faces = [
-      new Vec3(0, -1, 0), new Vec3(0, 1, 0), new Vec3(0, 0, -1),
-      new Vec3(0, 0, 1), new Vec3(-1, 0, 0), new Vec3(1, 0, 0)
+      new Vec3(0, -1, 0),
+      new Vec3(0, 1, 0),
+      new Vec3(0, 0, -1),
+      new Vec3(0, 0, 1),
+      new Vec3(-1, 0, 0),
+      new Vec3(1, 0, 0)
     ]
     const face = faces[Number(hit.face)] ?? new Vec3(0, 1, 0)
     const intersect = hit.intersect ?? hit.position.offset(0.5, 0.5, 0.5)
