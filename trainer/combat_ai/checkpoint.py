@@ -74,4 +74,9 @@ class CheckpointManager:
             torch.save(payload, snapshot_temporary)
             os.replace(snapshot_temporary, snapshot)
         with (self.directory / "metrics.jsonl").open("a", encoding="utf-8") as file:
-            file.write(json.dumps({"ticks": state.total_agent_ticks, "version": state.policy_version, **metrics}) + "\n")
+            file.write(
+                json.dumps(
+                    {"ticks": state.total_agent_ticks, "version": state.policy_version, **metrics}
+                )
+                + "\n"
+            )

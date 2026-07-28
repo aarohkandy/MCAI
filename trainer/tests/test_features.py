@@ -1,7 +1,14 @@
 import numpy as np
-
-from combat_ai.features import BLOCK_SIZE, ENTITY_SIZE, LEGAL_SIZE, OPPONENT_SIZE, SELF_SIZE, encode_observation
 from fixtures import observation
+
+from combat_ai.features import (
+    BLOCK_SIZE,
+    ENTITY_SIZE,
+    LEGAL_SIZE,
+    OPPONENT_SIZE,
+    SELF_SIZE,
+    encode_observation,
+)
 
 
 def test_feature_contract_has_fixed_shapes():

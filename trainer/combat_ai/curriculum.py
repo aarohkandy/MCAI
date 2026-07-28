@@ -6,7 +6,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
-
 STAGES = ("infrastructure", "sword", "crystal", "combined", "experienced_human")
 
 
@@ -34,19 +33,37 @@ class Gate:
 
 
 INFRASTRUCTURE_TASKS = (
-    "turning", "approaching", "following", "raycasting", "attack_reach",
-    "jumping", "sprinting", "block_placement", "block_mining", "item_selection",
+    "turning",
+    "approaching",
+    "following",
+    "raycasting",
+    "attack_reach",
+    "jumping",
+    "sprinting",
+    "block_placement",
+    "block_mining",
+    "item_selection",
 )
 CRYSTAL_TASKS = (
-    "obsidian_placement", "crystal_clearance", "crystal_breaking", "lower_self_damage",
-    "hit_crystal", "safe_eating", "retotem", "mine_cover", "escape_crystal", "obsidian_cover",
+    "obsidian_placement",
+    "crystal_clearance",
+    "crystal_breaking",
+    "lower_self_damage",
+    "hit_crystal",
+    "safe_eating",
+    "retotem",
+    "mine_cover",
+    "escape_crystal",
+    "obsidian_cover",
 )
 
 GATES: dict[str, tuple[Gate, ...]] = {
     "infrastructure": tuple(Gate(task, 500, minimum_rate=0.95) for task in INFRASTRUCTURE_TASKS),
     "sword": (
-        *(Gate(f"script_{style}", 500, minimum_rate=0.90) for style in
-          ("rush", "strafe", "retreat", "jump_critical", "defensive", "erratic")),
+        *(
+            Gate(f"script_{style}", 500, minimum_rate=0.90)
+            for style in ("rush", "strafe", "retreat", "jump_critical", "defensive", "erratic")
+        ),
         Gate("user_sword", 100, minimum_rate=0.60),
         Gate("frozen_no_regression", 3, minimum_rate=1.0),
     ),
@@ -73,7 +90,7 @@ class CurriculumState:
     evaluations: list[dict[str, Any]] = field(default_factory=list)
 
     @classmethod
-    def load(cls, path: Path) -> "CurriculumState":
+    def load(cls, path: Path) -> CurriculumState:
         if not path.exists():
             return cls()
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -96,7 +113,12 @@ class CurriculumState:
             index = STAGES.index(stage)
             if index + 1 < len(STAGES):
                 self.current_stage = STAGES[index + 1]
-        return {"stage": stage, "promoted": promoted, "next_stage": self.current_stage, "failed_gates": failed}
+        return {
+            "stage": stage,
+            "promoted": promoted,
+            "next_stage": self.current_stage,
+            "failed_gates": failed,
+        }
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -105,10 +127,14 @@ class CurriculumState:
         temporary.replace(path)
 
 
-def is_held_out(arena_seed: int, action_delay: int, observation_delay: int, fraction: float = 0.20) -> bool:
+def is_held_out(
+    arena_seed: int, action_delay: int, observation_delay: int, fraction: float = 0.20
+) -> bool:
     """Stable split; a seed/delay tuple can never drift between train and evaluation."""
     if not 0.0 <= fraction <= 1.0:
         raise ValueError("fraction must be between zero and one")
-    digest = hashlib.sha256(f"{arena_seed}:{action_delay}:{observation_delay}".encode("ascii")).digest()
+    digest = hashlib.sha256(
+        f"{arena_seed}:{action_delay}:{observation_delay}".encode("ascii")
+    ).digest()
     buckets = round(fraction * 100)
     return int.from_bytes(digest[:4], "big") % 100 < buckets

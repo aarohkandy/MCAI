@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from combat_ai.curriculum import CurriculumState, GATES, is_held_out
+from combat_ai.curriculum import GATES, CurriculumState, is_held_out
 
 
 def test_holdout_split_is_stable_and_validates_fraction():
@@ -26,7 +26,11 @@ def test_curriculum_does_not_promote_with_missing_gates(tmp_path: Path):
 def test_curriculum_promotes_only_after_all_exact_gates_pass():
     state = CurriculumState()
     metrics = {
-        gate.metric: {"episodes": gate.minimum_episodes, "rate": gate.minimum_rate or 0.0, "value": gate.minimum_value or 0.0}
+        gate.metric: {
+            "episodes": gate.minimum_episodes,
+            "rate": gate.minimum_rate or 0.0,
+            "value": gate.minimum_value or 0.0,
+        }
         for gate in GATES["infrastructure"]
     }
     result = state.evaluate({"stage": "infrastructure", "metrics": metrics})

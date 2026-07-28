@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 import torch
@@ -49,15 +48,15 @@ class SequenceBatch:
     def sequence_length(self) -> int:
         return self.valid.shape[1]
 
-    def index(self, indices: torch.Tensor) -> "SequenceBatch":
-        feature_values = {
-            name: value[indices] for name, value in vars(self.features).items()
-        }
+    def index(self, indices: torch.Tensor) -> SequenceBatch:
+        feature_values = {name: value[indices] for name, value in vars(self.features).items()}
         return SequenceBatch(
             features=FeatureBatch(**feature_values),
             hidden=self.hidden[:, indices],
             actions=ActionTensor(
-                categorical={name: value[indices] for name, value in self.actions.categorical.items()},
+                categorical={
+                    name: value[indices] for name, value in self.actions.categorical.items()
+                },
                 camera=self.actions.camera[indices],
             ),
             old_log_probability=self.old_log_probability[indices],
@@ -82,7 +81,11 @@ class RolloutBuffer:
         return len(self.transitions) >= self.capacity
 
     def drain(self, policy_version: int) -> list[Transition]:
-        accepted = [transition for transition in self.transitions if transition.policy_version == policy_version]
+        accepted = [
+            transition
+            for transition in self.transitions
+            if transition.policy_version == policy_version
+        ]
         self.transitions.clear()
         return accepted
 
@@ -104,7 +107,9 @@ def prepare_sequences(
         grouped[(transition.agent_id, transition.episode_id)].append(transition)
     for group in grouped.values():
         _calculate_advantages(group, gamma, gae_lambda)
-    flat_advantages = np.asarray([transition.advantage for transition in transitions], dtype=np.float32)
+    flat_advantages = np.asarray(
+        [transition.advantage for transition in transitions], dtype=np.float32
+    )
     mean = float(flat_advantages.mean())
     standard_deviation = float(flat_advantages.std()) + 1e-8
     for transition in transitions:
@@ -113,7 +118,7 @@ def prepare_sequences(
     chunks: list[list[Transition]] = []
     for group in grouped.values():
         for start in range(0, len(group), sequence_length):
-            chunks.append(group[start:start + sequence_length])
+            chunks.append(group[start : start + sequence_length])
 
     feature_keys = tuple(transitions[0].features.keys())
     feature_arrays: dict[str, list[np.ndarray]] = {key: [] for key in feature_keys}
@@ -122,7 +127,8 @@ def prepare_sequences(
     hidden_values: list[np.ndarray] = []
     camera_values: list[np.ndarray] = []
     scalar_values: dict[str, list[np.ndarray]] = {
-        name: [] for name in ("old_log_probability", "old_value", "advantage", "returns", "done", "valid")
+        name: []
+        for name in ("old_log_probability", "old_value", "advantage", "returns", "done", "valid")
     }
     for chunk in chunks:
         padding = sequence_length - len(chunk)
@@ -136,19 +142,28 @@ def prepare_sequences(
         for name in categorical_names:
             values = [entry.categorical_action[name] for entry in chunk] + [0] * padding
             categorical_arrays[name].append(np.asarray(values, dtype=np.int64))
-        cameras = [entry.camera_action for entry in chunk] + [np.zeros(2, dtype=np.float32)] * padding
+        cameras = [entry.camera_action for entry in chunk] + [
+            np.zeros(2, dtype=np.float32)
+        ] * padding
         camera_values.append(np.stack(cameras))
         valid = [1.0] * len(chunk) + [0.0] * padding
-        scalar_values["old_log_probability"].append(_padded_scalar(chunk, "old_log_probability", padding))
+        scalar_values["old_log_probability"].append(
+            _padded_scalar(chunk, "old_log_probability", padding)
+        )
         scalar_values["old_value"].append(_padded_scalar(chunk, "old_value", padding))
         scalar_values["advantage"].append(_padded_scalar(chunk, "advantage", padding))
         scalar_values["returns"].append(_padded_scalar(chunk, "return_value", padding))
-        scalar_values["done"].append(np.asarray([float(entry.done) for entry in chunk] + [1.0] * padding, dtype=np.float32))
+        scalar_values["done"].append(
+            np.asarray([float(entry.done) for entry in chunk] + [1.0] * padding, dtype=np.float32)
+        )
         scalar_values["valid"].append(np.asarray(valid, dtype=np.float32))
 
-    features = FeatureBatch(**{
-        key: torch.from_numpy(np.stack(values)).to(device) for key, values in feature_arrays.items()
-    })
+    features = FeatureBatch(
+        **{
+            key: torch.from_numpy(np.stack(values)).to(device)
+            for key, values in feature_arrays.items()
+        }
+    )
     actions = ActionTensor(
         categorical={
             name: torch.from_numpy(np.stack(values)).to(device)
@@ -189,11 +204,15 @@ def _calculate_advantages(group: list[Transition], gamma: float, gae_lambda: flo
     following_advantage = 0.0
     for transition in reversed(group):
         non_terminal = 0.0 if transition.done else 1.0
-        delta = transition.reward + gamma * transition.next_value * non_terminal - transition.old_value
+        delta = (
+            transition.reward + gamma * transition.next_value * non_terminal - transition.old_value
+        )
         transition.advantage = delta + gamma * gae_lambda * non_terminal * following_advantage
         transition.return_value = transition.advantage + transition.old_value
         following_advantage = transition.advantage
 
 
 def _padded_scalar(chunk: list[Transition], name: str, padding: int) -> np.ndarray:
-    return np.asarray([float(getattr(entry, name)) for entry in chunk] + [0.0] * padding, dtype=np.float32)
+    return np.asarray(
+        [float(getattr(entry, name)) for entry in chunk] + [0.0] * padding, dtype=np.float32
+    )

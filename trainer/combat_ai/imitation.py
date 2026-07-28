@@ -36,7 +36,11 @@ def split_matches(
     random.Random(seed).shuffle(identifiers)
     train_end = max(1, round(len(identifiers) * 0.8))
     validation_end = max(train_end, round(len(identifiers) * 0.9))
-    groups = (identifiers[:train_end], identifiers[train_end:validation_end], identifiers[validation_end:])
+    groups = (
+        identifiers[:train_end],
+        identifiers[train_end:validation_end],
+        identifiers[validation_end:],
+    )
     return tuple([record for identifier in group for record in matches[identifier]] for group in groups)  # type: ignore[return-value]
 
 
@@ -61,7 +65,7 @@ def behavior_clone(
         random.shuffle(train)
         policy.train()
         for start in range(0, len(train), batch_size):
-            batch = train[start:start + batch_size]
+            batch = train[start : start + batch_size]
             loss = imitation_loss(policy, batch, device)
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
@@ -70,7 +74,9 @@ def behavior_clone(
         validation_loss = evaluate_imitation(policy, validation, batch_size, device)
         if validation_loss + 1e-5 < best_loss:
             best_loss = validation_loss
-            best_state = {name: value.detach().cpu().clone() for name, value in policy.state_dict().items()}
+            best_state = {
+                name: value.detach().cpu().clone() for name, value in policy.state_dict().items()
+            }
             stale_epochs = 0
         else:
             stale_epochs += 1
@@ -81,10 +87,15 @@ def behavior_clone(
     policy.load_state_dict(best_state)
     output.parent.mkdir(parents=True, exist_ok=True)
     torch.save({"format_version": 1, "policy": best_state, "source": str(demonstrations)}, output)
-    return {"validation_loss": best_loss, "test_loss": evaluate_imitation(policy, test or validation, batch_size, device)}
+    return {
+        "validation_loss": best_loss,
+        "test_loss": evaluate_imitation(policy, test or validation, batch_size, device),
+    }
 
 
-def imitation_loss(policy: CombatPolicy, records: list[dict[str, Any]], device: torch.device) -> torch.Tensor:
+def imitation_loss(
+    policy: CombatPolicy, records: list[dict[str, Any]], device: torch.device
+) -> torch.Tensor:
     features = batch_observations([record["observation"] for record in records], device)
     actions = actions_from_wire([record["action"] for record in records], device)
     output = policy(features, policy.initial_hidden(len(records), device))
@@ -111,7 +122,7 @@ def evaluate_imitation(
     total = 0.0
     count = 0
     for start in range(0, len(records), batch_size):
-        batch = records[start:start + batch_size]
+        batch = records[start : start + batch_size]
         total += float(imitation_loss(policy, batch, device)) * len(batch)
         count += len(batch)
     return total / max(count, 1)

@@ -7,7 +7,7 @@ from typing import Any
 import torch
 from torch.distributions import Categorical, Normal
 
-from .features import FeatureBatch, PRIMARY_NAMES, categorical_masks
+from .features import PRIMARY_NAMES, FeatureBatch, categorical_masks
 from .model import PolicyOutput
 
 CAMERA_SCALE = (math.pi, math.pi / 2)
@@ -18,7 +18,7 @@ class ActionTensor:
     categorical: dict[str, torch.Tensor]
     camera: torch.Tensor
 
-    def index(self, indices: torch.Tensor) -> "ActionTensor":
+    def index(self, indices: torch.Tensor) -> ActionTensor:
         return ActionTensor(
             categorical={name: value[indices] for name, value in self.categorical.items()},
             camera=self.camera[indices],
@@ -76,12 +76,18 @@ def actions_from_wire(actions: list[dict[str, Any]], device: torch.device | str)
         "jump": torch.tensor([int(bool(a["jump"])) for a in actions], device=device),
         "sprint": torch.tensor([int(bool(a["sprint"])) for a in actions], device=device),
         "sneak": torch.tensor([int(bool(a["sneak"])) for a in actions], device=device),
-        "primary": torch.tensor([PRIMARY_NAMES.index(a["primary"]) for a in actions], device=device),
+        "primary": torch.tensor(
+            [PRIMARY_NAMES.index(a["primary"]) for a in actions], device=device
+        ),
         "release_use": torch.tensor([int(bool(a["release_use"])) for a in actions], device=device),
         "hotbar": torch.tensor([int(a["hotbar"]) + 1 for a in actions], device=device),
-        "swap_offhand": torch.tensor([int(bool(a["swap_offhand"])) for a in actions], device=device),
+        "swap_offhand": torch.tensor(
+            [int(bool(a["swap_offhand"])) for a in actions], device=device
+        ),
     }
-    camera = torch.tensor([[float(a["yaw_delta"]), float(a["pitch_delta"])] for a in actions], device=device)
+    camera = torch.tensor(
+        [[float(a["yaw_delta"]), float(a["pitch_delta"])] for a in actions], device=device
+    )
     return ActionTensor(categorical=categorical, camera=camera)
 
 
@@ -129,21 +135,25 @@ def _conditional_mask(name: str, mask: torch.Tensor, primary: torch.Tensor | Non
 
 def _to_wire_actions(actions: ActionTensor) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
-    categorical = {name: value.detach().cpu().tolist() for name, value in actions.categorical.items()}
+    categorical = {
+        name: value.detach().cpu().tolist() for name, value in actions.categorical.items()
+    }
     camera = actions.camera.detach().cpu().tolist()
     for index in range(len(camera)):
-        result.append({
-            "schema_version": 1,
-            "forward": int(categorical["forward"][index]) - 1,
-            "strafe": int(categorical["strafe"][index]) - 1,
-            "jump": bool(categorical["jump"][index]),
-            "sprint": bool(categorical["sprint"][index]),
-            "sneak": bool(categorical["sneak"][index]),
-            "yaw_delta": float(camera[index][0]),
-            "pitch_delta": float(camera[index][1]),
-            "primary": PRIMARY_NAMES[int(categorical["primary"][index])],
-            "release_use": bool(categorical["release_use"][index]),
-            "hotbar": int(categorical["hotbar"][index]) - 1,
-            "swap_offhand": bool(categorical["swap_offhand"][index]),
-        })
+        result.append(
+            {
+                "schema_version": 1,
+                "forward": int(categorical["forward"][index]) - 1,
+                "strafe": int(categorical["strafe"][index]) - 1,
+                "jump": bool(categorical["jump"][index]),
+                "sprint": bool(categorical["sprint"][index]),
+                "sneak": bool(categorical["sneak"][index]),
+                "yaw_delta": float(camera[index][0]),
+                "pitch_delta": float(camera[index][1]),
+                "primary": PRIMARY_NAMES[int(categorical["primary"][index])],
+                "release_use": bool(categorical["release_use"][index]),
+                "hotbar": int(categorical["hotbar"][index]) - 1,
+                "swap_offhand": bool(categorical["swap_offhand"][index]),
+            }
+        )
     return result

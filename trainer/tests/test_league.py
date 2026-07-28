@@ -1,14 +1,14 @@
 from pathlib import Path
 
 import torch
+from fixtures import observation
 
 from combat_ai.league import LeagueManager, scripted_action
 from combat_ai.model import CombatPolicy
-from fixtures import observation
 
 
 def test_episode_assignment_is_stable_and_in_declared_modes(tmp_path: Path):
-    manager = LeagueManager(tmp_path, __import__('torch').device('cpu'))
+    manager = LeagueManager(tmp_path, __import__("torch").device("cpu"))
     steps = [
         {"agent_id": "a", "observation": observation("episode")},
         {"agent_id": "b", "observation": observation("episode")},
@@ -29,7 +29,7 @@ def test_scripted_teacher_uses_only_action_v1_controls():
 
 
 def test_five_flat_evaluations_request_an_exploiter(tmp_path: Path):
-    manager = LeagueManager(tmp_path, __import__('torch').device('cpu'))
+    manager = LeagueManager(tmp_path, __import__("torch").device("cpu"))
     outcomes = [manager.note_evaluation(1200 + index * 0.5) for index in range(5)]
     assert outcomes[-1] is True
 

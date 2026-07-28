@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-import random
 import os
+import random
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -81,7 +81,9 @@ class LeagueManager:
         self._save(exploiter_requested=False)
         return destination
 
-    def opponent_action(self, assignment: EpisodeAssignment, agent_id: str, observation: dict[str, Any]) -> dict[str, Any]:
+    def opponent_action(
+        self, assignment: EpisodeAssignment, agent_id: str, observation: dict[str, Any]
+    ) -> dict[str, Any]:
         if assignment.mode == "historical" and assignment.checkpoint:
             path = Path(assignment.checkpoint)
             policy = self.policy_cache.get(str(path))
@@ -98,7 +100,9 @@ class LeagueManager:
             return actions[0]
         return scripted_action(observation, assignment.style or "erratic")
 
-    def record_result(self, episode_id: str, main_agent: str, reward: float, outcome: str | None = None) -> None:
+    def record_result(
+        self, episode_id: str, main_agent: str, reward: float, outcome: str | None = None
+    ) -> None:
         assignment = self.assignments.get(episode_id)
         if assignment is None or assignment.opponent_agent == main_agent:
             return
@@ -106,8 +110,11 @@ class LeagueManager:
             key = Path(assignment.checkpoint).name
             opponent_elo = self.ratings.get(key, 1000.0)
             expected = 1.0 / (1.0 + 10.0 ** ((opponent_elo - self.main_elo) / 400.0))
-            score = ({"win": 1.0, "draw": 0.5, "loss": 0.0}.get(str(outcome).lower())
-                     if outcome is not None else None)
+            score = (
+                {"win": 1.0, "draw": 0.5, "loss": 0.0}.get(str(outcome).lower())
+                if outcome is not None
+                else None
+            )
             if score is None:
                 score = 1.0 if reward > 0 else (0.5 if abs(reward + 0.05) < 1e-6 else 0.0)
             change = 24.0 * (score - expected)
@@ -126,11 +133,17 @@ class LeagueManager:
         return plateau
 
     def prune_pool(self) -> None:
-        snapshots = sorted(self.checkpoint_dir.glob("policy-*.pt"), key=lambda path: path.stat().st_mtime)
+        snapshots = sorted(
+            self.checkpoint_dir.glob("policy-*.pt"), key=lambda path: path.stat().st_mtime
+        )
         if len(snapshots) <= 30:
             return
         latest = set(snapshots[-10:])
-        best = set(sorted(snapshots, key=lambda path: self.ratings.get(path.name, 1000.0), reverse=True)[:20])
+        best = set(
+            sorted(snapshots, key=lambda path: self.ratings.get(path.name, 1000.0), reverse=True)[
+                :20
+            ]
+        )
         for path in snapshots:
             if path not in latest and path not in best:
                 path.unlink(missing_ok=True)
@@ -158,7 +171,12 @@ class LeagueManager:
         snapshots = list(self.checkpoint_dir.glob("policy-*.pt"))
         if not snapshots:
             return None
-        return min(snapshots, key=lambda path: abs(_expected(self.main_elo, self.ratings.get(path.name, 1000.0)) - 0.5))
+        return min(
+            snapshots,
+            key=lambda path: abs(
+                _expected(self.main_elo, self.ratings.get(path.name, 1000.0)) - 0.5
+            ),
+        )
 
     def _load(self) -> None:
         if not self.metadata_path.exists():
@@ -166,7 +184,9 @@ class LeagueManager:
         try:
             value = json.loads(self.metadata_path.read_text(encoding="utf-8"))
             self.main_elo = float(value.get("main_elo", 1000.0))
-            self.ratings = {str(key): float(rating) for key, rating in value.get("ratings", {}).items()}
+            self.ratings = {
+                str(key): float(rating) for key, rating in value.get("ratings", {}).items()
+            }
             self.evaluations = [float(entry) for entry in value.get("evaluations", [])][-5:]
         except (ValueError, OSError):
             pass
@@ -174,10 +194,20 @@ class LeagueManager:
     def _save(self, exploiter_requested: bool = False) -> None:
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         temporary = self.metadata_path.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps({
-            "format_version": 1, "main_elo": self.main_elo, "ratings": self.ratings,
-            "evaluations": self.evaluations, "exploiter_requested": exploiter_requested,
-        }, indent=2) + "\n", encoding="utf-8")
+        temporary.write_text(
+            json.dumps(
+                {
+                    "format_version": 1,
+                    "main_elo": self.main_elo,
+                    "ratings": self.ratings,
+                    "evaluations": self.evaluations,
+                    "exploiter_requested": exploiter_requested,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         temporary.replace(self.metadata_path)
 
 
@@ -192,23 +222,43 @@ def scripted_action(observation: dict[str, Any], style: str) -> dict[str, Any]:
         float(relative["y"]), max(1e-6, math.hypot(float(relative["x"]), float(relative["z"])))
     ) - float(observation["self"].get("pitch", 0.0))
     tick = int(observation["match"]["tick"])
-    forward = 1 if distance > (3.0 if style != "retreat" else 5.0) else (-1 if style in ("retreat", "defensive") else 0)
+    forward = (
+        1
+        if distance > (3.0 if style != "retreat" else 5.0)
+        else (-1 if style in ("retreat", "defensive") else 0)
+    )
     strafe = 0 if style == "rush" else (1 if (tick // 17) % 2 else -1)
     if style == "erratic":
         randomizer = random.Random(_stable_seed(f"{observation['match']['episode_id']}:{tick}"))
         strafe = randomizer.choice((-1, 0, 1))
     return _wire_action(
-        forward=forward, strafe=strafe, sprint=forward > 0,
+        forward=forward,
+        strafe=strafe,
+        sprint=forward > 0,
         jump=style == "jump_critical" and tick % 13 == 0,
-        yaw_delta=max(-0.45, min(0.45, yaw_error)), pitch_delta=max(-0.3, min(0.3, pitch_error)),
-        primary="attack" if distance <= 3.0 and observation["action_mask"].get("attack") else "none",
+        yaw_delta=max(-0.45, min(0.45, yaw_error)),
+        pitch_delta=max(-0.3, min(0.3, pitch_error)),
+        primary=(
+            "attack" if distance <= 3.0 and observation["action_mask"].get("attack") else "none"
+        ),
     )
 
 
 def _wire_action(**updates: Any) -> dict[str, Any]:
-    value = {"schema_version": 1, "forward": 0, "strafe": 0, "jump": False, "sprint": False,
-             "sneak": False, "yaw_delta": 0.0, "pitch_delta": 0.0, "primary": "none",
-             "release_use": False, "hotbar": -1, "swap_offhand": False}
+    value = {
+        "schema_version": 1,
+        "forward": 0,
+        "strafe": 0,
+        "jump": False,
+        "sprint": False,
+        "sneak": False,
+        "yaw_delta": 0.0,
+        "pitch_delta": 0.0,
+        "primary": "none",
+        "release_use": False,
+        "hotbar": -1,
+        "swap_offhand": False,
+    }
     value.update(updates)
     return value
 

@@ -1,11 +1,11 @@
 import math
 
 import torch
+from fixtures import observation
 
 from combat_ai.distribution import sample_actions
 from combat_ai.features import batch_observations
 from combat_ai.model import CombatPolicy
-from fixtures import observation
 
 
 def test_policy_is_compact_and_outputs_legal_actions():

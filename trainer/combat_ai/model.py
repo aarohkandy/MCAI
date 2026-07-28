@@ -41,8 +41,10 @@ class MLP(nn.Module):
     def __init__(self, input_size: int, hidden_size: int, output_size: int):
         super().__init__()
         self.layers = nn.Sequential(
-            nn.Linear(input_size, hidden_size), nn.Tanh(),
-            nn.Linear(hidden_size, output_size), nn.Tanh(),
+            nn.Linear(input_size, hidden_size),
+            nn.Tanh(),
+            nn.Linear(hidden_size, output_size),
+            nn.Tanh(),
         )
 
     def forward(self, value: torch.Tensor) -> torch.Tensor:
@@ -61,9 +63,12 @@ class CombatPolicy(nn.Module):
         self.legal_encoder = MLP(LEGAL_SIZE, 32, 24)
         self.fusion = MLP(96 + 64 + 128 + 128 + 24, 192, 192)
         self.memory = nn.GRU(192, HIDDEN_SIZE, batch_first=True)
-        self.categorical_heads = nn.ModuleDict({
-            f"head_{name}": nn.Linear(HIDDEN_SIZE, size) for name, size in CATEGORICAL_SIZES.items()
-        })
+        self.categorical_heads = nn.ModuleDict(
+            {
+                f"head_{name}": nn.Linear(HIDDEN_SIZE, size)
+                for name, size in CATEGORICAL_SIZES.items()
+            }
+        )
         self.camera_mean = nn.Linear(HIDDEN_SIZE, 2)
         self.camera_log_std = nn.Parameter(torch.full((2,), -1.4))
         self.value_head = nn.Linear(HIDDEN_SIZE, 1)
@@ -79,14 +84,18 @@ class CombatPolicy(nn.Module):
         entity_pool = _masked_pool(entities, features.entity_mask)
         block_pool = _masked_pool(blocks, features.block_mask)
         legal = self.legal_encoder(features.legal)
-        return self.fusion(torch.cat((self_features, opponent, entity_pool, block_pool, legal), dim=-1))
+        return self.fusion(
+            torch.cat((self_features, opponent, entity_pool, block_pool, legal), dim=-1)
+        )
 
     def forward(self, features: FeatureBatch, hidden: torch.Tensor) -> PolicyOutput:
         fused = self.encode(features).unsqueeze(1)
         memory, next_hidden = self.memory(fused, hidden)
         state = memory[:, 0]
         return PolicyOutput(
-            logits={name: self.categorical_heads[f"head_{name}"](state) for name in CATEGORICAL_SIZES},
+            logits={
+                name: self.categorical_heads[f"head_{name}"](state) for name in CATEGORICAL_SIZES
+            },
             camera_mean=self.camera_mean(state),
             camera_log_std=self.camera_log_std.expand(state.shape[0], -1),
             value=self.value_head(state).squeeze(-1),

@@ -16,11 +16,11 @@ import websockets
 from .buffer import RolloutBuffer, Transition, prepare_sequences
 from .checkpoint import CheckpointManager
 from .config import PPOConfig, ServiceConfig
-from .distribution import ActionTensor, sample_actions
+from .distribution import sample_actions
 from .features import batch_observations, encode_observation
-from .model import CombatPolicy
 from .imitation import load_demonstrations, split_matches
 from .league import LeagueManager
+from .model import CombatPolicy
 from .ppo import PPOTrainer, choose_device
 
 
@@ -39,8 +39,11 @@ class PendingStep:
 
 class PolicyService:
     def __init__(
-        self, ppo_config: PPOConfig, service_config: ServiceConfig,
-        imitation_data: Path | None = None, initialize_from: list[Path] | None = None,
+        self,
+        ppo_config: PPOConfig,
+        service_config: ServiceConfig,
+        imitation_data: Path | None = None,
+        initialize_from: list[Path] | None = None,
         exploiter_target: Path | None = None,
     ):
         mps = getattr(torch.backends, "mps", None)
@@ -58,9 +61,15 @@ class PolicyService:
         if self.policy.parameter_count >= 1_000_000:
             raise RuntimeError(f"policy is too large: {self.policy.parameter_count:,} parameters")
         self.trainer = PPOTrainer(self.policy, ppo_config, self.device)
-        self.checkpoints = CheckpointManager(service_config.checkpoint_dir, ppo_config.checkpoint_every_ticks)
+        self.checkpoints = CheckpointManager(
+            service_config.checkpoint_dir, ppo_config.checkpoint_every_ticks
+        )
         self.state = self.checkpoints.restore(self.policy, self.trainer.optimizer, self.device)
-        if self.state.total_agent_ticks == 0 and initialize_from and not (service_config.checkpoint_dir / "latest.pt").exists():
+        if (
+            self.state.total_agent_ticks == 0
+            and initialize_from
+            and not (service_config.checkpoint_dir / "latest.pt").exists()
+        ):
             _initialize_policy(self.policy, initialize_from, self.device)
         self.buffer = RolloutBuffer(ppo_config.rollout_agent_ticks)
         self.hidden: dict[str, torch.Tensor] = {}
@@ -82,18 +91,30 @@ class PolicyService:
                 if response is not None:
                     await websocket.send(msgpack.packb(response, use_bin_type=True))
             except Exception as error:
-                response = {"schema_version": 1, "type": "control", "sequence": 0,
-                            "command": "error", "payload": {"message": str(error)}}
+                response = {
+                    "schema_version": 1,
+                    "type": "control",
+                    "sequence": 0,
+                    "command": "error",
+                    "payload": {"message": str(error)},
+                }
                 await websocket.send(msgpack.packb(response, use_bin_type=True))
 
     async def handle_message(self, message: dict[str, Any]) -> dict[str, Any] | None:
         if int(message.get("schema_version", -1)) != 1:
             raise ValueError("unsupported wire schema_version")
         if message.get("type") == "hello":
-            return {"schema_version": 1, "type": "control", "sequence": message.get("sequence", 0),
-                    "command": "hello_ack", "payload": {"device": str(self.device),
+            return {
+                "schema_version": 1,
+                "type": "control",
+                "sequence": message.get("sequence", 0),
+                "command": "hello_ack",
+                "payload": {
+                    "device": str(self.device),
                     "policy_version": self.state.policy_version,
-                    "parameters": self.policy.parameter_count}}
+                    "parameters": self.policy.parameter_count,
+                },
+            }
         if message.get("type") != "step_batch":
             return None
         return await self._step_batch(message)
@@ -106,10 +127,13 @@ class PolicyService:
         self.league.assign_batch(steps)
         encoded = [encode_observation(observation) for observation in observations]
         features = batch_observations(observations, self.device)
-        hidden = torch.cat([
-            self.hidden.get(step["agent_id"], self.policy.initial_hidden(1, self.device))
-            for step in steps
-        ], dim=1)
+        hidden = torch.cat(
+            [
+                self.hidden.get(step["agent_id"], self.policy.initial_hidden(1, self.device))
+                for step in steps
+            ],
+            dim=1,
+        )
 
         self.policy.eval()
         with torch.no_grad():
@@ -129,7 +153,9 @@ class PolicyService:
 
         with torch.no_grad():
             wire_actions, action_tensor, log_probability, _ = sample_actions(
-                bootstrap_output, features.to(self.trainer.device), self.service_config.deterministic_inference
+                bootstrap_output,
+                features.to(self.trainer.device),
+                self.service_config.deterministic_inference,
             )
         current_version = self.state.policy_version
         for index, step in enumerate(steps):
@@ -141,19 +167,27 @@ class PolicyService:
                 self.pending.pop(agent_id, None)
                 continue
             assignment = self.league.assignment_for(str(step["observation"]["match"]["episode_id"]))
-            if assignment is not None and assignment.opponent_agent == agent_id and assignment.mode != "mirror":
-                wire_actions[index] = self.league.opponent_action(assignment, agent_id, step["observation"])
+            if (
+                assignment is not None
+                and assignment.opponent_agent == agent_id
+                and assignment.mode != "mirror"
+            ):
+                wire_actions[index] = self.league.opponent_action(
+                    assignment, agent_id, step["observation"]
+                )
                 self.hidden[agent_id] = self.policy.initial_hidden(1, self.trainer.device)
                 self.pending.pop(agent_id, None)
                 continue
-            self.hidden[agent_id] = bootstrap_output.hidden[:, index:index + 1].detach()
+            self.hidden[agent_id] = bootstrap_output.hidden[:, index : index + 1].detach()
             self.pending[agent_id] = PendingStep(
                 agent_id=agent_id,
                 episode_id=str(step["observation"]["match"]["episode_id"]),
                 policy_version=current_version,
                 features=encoded[index],
                 hidden=hidden[:, index].detach().cpu().numpy()[0],
-                categorical_action={name: int(value[index]) for name, value in action_tensor.categorical.items()},
+                categorical_action={
+                    name: int(value[index]) for name, value in action_tensor.categorical.items()
+                },
                 camera_action=action_tensor.camera[index].detach().cpu().numpy().astype(np.float32),
                 log_probability=float(log_probability[index]),
                 value=float(bootstrap_output.value[index]),
@@ -173,19 +207,35 @@ class PolicyService:
         episode_id = str(step["observation"]["match"]["episode_id"])
         if episode_id != pending.episode_id:
             done = True
-        self.buffer.append(Transition(
-            agent_id=agent_id, episode_id=pending.episode_id, policy_version=pending.policy_version,
-            features=pending.features, hidden=pending.hidden,
-            categorical_action=pending.categorical_action, camera_action=pending.camera_action,
-            old_log_probability=pending.log_probability, old_value=pending.value,
-            reward=float(step.get("reward", 0.0)), done=done,
-            next_value=0.0 if done else bootstrap_value,
-        ))
+        self.buffer.append(
+            Transition(
+                agent_id=agent_id,
+                episode_id=pending.episode_id,
+                policy_version=pending.policy_version,
+                features=pending.features,
+                hidden=pending.hidden,
+                categorical_action=pending.categorical_action,
+                camera_action=pending.camera_action,
+                old_log_probability=pending.log_probability,
+                old_value=pending.value,
+                reward=float(step.get("reward", 0.0)),
+                done=done,
+                next_value=0.0 if done else bootstrap_value,
+            )
+        )
         if len(self.buffer) >= self.next_progress_tick and not self.buffer.ready:
-            print(json.dumps({"event": "rollout_progress", "policy_version": self.state.policy_version,
-                              "collected_agent_ticks": len(self.buffer),
-                              "target_agent_ticks": self.config.rollout_agent_ticks,
-                              "total_agent_ticks": self.state.total_agent_ticks}), flush=True)
+            print(
+                json.dumps(
+                    {
+                        "event": "rollout_progress",
+                        "policy_version": self.state.policy_version,
+                        "collected_agent_ticks": len(self.buffer),
+                        "target_agent_ticks": self.config.rollout_agent_ticks,
+                        "total_agent_ticks": self.state.total_agent_ticks,
+                    }
+                ),
+                flush=True,
+            )
             self.next_progress_tick += self.progress_interval
         if done:
             info = step.get("info") if isinstance(step.get("info"), dict) else {}
@@ -198,13 +248,24 @@ class PolicyService:
         if not transitions:
             return
         self.next_progress_tick = self.progress_interval
-        print(json.dumps({"event": "ppo_training_started", "policy_version": self.state.policy_version,
-                          "batch_agent_ticks": len(transitions),
-                          "total_agent_ticks": self.state.total_agent_ticks}), flush=True)
+        print(
+            json.dumps(
+                {
+                    "event": "ppo_training_started",
+                    "policy_version": self.state.policy_version,
+                    "batch_agent_ticks": len(transitions),
+                    "total_agent_ticks": self.state.total_agent_ticks,
+                }
+            ),
+            flush=True,
+        )
         self.policy.train()
         batch = prepare_sequences(
-            transitions, self.config.recurrent_sequence_length, self.config.gamma,
-            self.config.gae_lambda, self.trainer.device,
+            transitions,
+            self.config.recurrent_sequence_length,
+            self.config.gamma,
+            self.config.gae_lambda,
+            self.trainer.device,
         )
         metrics = self.trainer.update(batch)
         imitation_weight = self.config.imitation_start_weight * max(
@@ -218,19 +279,40 @@ class PolicyService:
         self.state.policy_version += 1
         self.state.total_agent_ticks += len(transitions)
         metrics_dict = vars(metrics)
-        self.checkpoints.save(self.policy, self.trainer.optimizer, self.state, self.config, metrics_dict)
+        self.checkpoints.save(
+            self.policy, self.trainer.optimizer, self.state, self.config, metrics_dict
+        )
         self.league.prune_pool()
-        print(json.dumps({"event": "ppo_update", "policy_version": self.state.policy_version,
-                          "total_agent_ticks": self.state.total_agent_ticks, **metrics_dict}), flush=True)
+        print(
+            json.dumps(
+                {
+                    "event": "ppo_update",
+                    "policy_version": self.state.policy_version,
+                    "total_agent_ticks": self.state.total_agent_ticks,
+                    **metrics_dict,
+                }
+            ),
+            flush=True,
+        )
 
-    def _action_response(self, message: dict[str, Any], actions: list[dict[str, Any]]) -> dict[str, Any]:
-        return {"schema_version": 1, "type": "action_batch", "sequence": message.get("sequence", 0),
-                "policy_version": self.state.policy_version, "actions": actions}
+    def _action_response(
+        self, message: dict[str, Any], actions: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        return {
+            "schema_version": 1,
+            "type": "action_batch",
+            "sequence": message.get("sequence", 0),
+            "policy_version": self.state.policy_version,
+            "actions": actions,
+        }
 
 
 async def serve(
-    ppo_config: PPOConfig, service_config: ServiceConfig, imitation_data: Path | None = None,
-    initialize_from: list[Path] | None = None, exploiter_target: Path | None = None,
+    ppo_config: PPOConfig,
+    service_config: ServiceConfig,
+    imitation_data: Path | None = None,
+    initialize_from: list[Path] | None = None,
+    exploiter_target: Path | None = None,
 ) -> None:
     initial = list(initialize_from or [])
     if exploiter_target is not None and not initial:
@@ -243,18 +325,40 @@ async def serve(
             loop.add_signal_handler(signal_name, stop.set_result, None)
         except NotImplementedError:
             pass
-    async with websockets.serve(service.handle, service_config.host, service_config.port, max_size=32 * 1024 * 1024):
-        print(json.dumps({"event": "trainer_ready", "host": service_config.host,
-                          "port": service_config.port, "device": str(service.device),
-                          "policy_version": service.state.policy_version,
-                          "parameters": service.policy.parameter_count}), flush=True)
+    async with websockets.serve(
+        service.handle, service_config.host, service_config.port, max_size=32 * 1024 * 1024
+    ):
+        print(
+            json.dumps(
+                {
+                    "event": "trainer_ready",
+                    "host": service_config.host,
+                    "port": service_config.port,
+                    "device": str(service.device),
+                    "policy_version": service.state.policy_version,
+                    "parameters": service.policy.parameter_count,
+                }
+            ),
+            flush=True,
+        )
         await stop
 
 
 def _noop_action() -> dict[str, Any]:
-    return {"schema_version": 1, "forward": 0, "strafe": 0, "jump": False, "sprint": False,
-            "sneak": False, "yaw_delta": 0.0, "pitch_delta": 0.0, "primary": "none",
-            "release_use": False, "hotbar": -1, "swap_offhand": False}
+    return {
+        "schema_version": 1,
+        "forward": 0,
+        "strafe": 0,
+        "jump": False,
+        "sprint": False,
+        "sneak": False,
+        "yaw_delta": 0.0,
+        "pitch_delta": 0.0,
+        "primary": "none",
+        "release_use": False,
+        "hotbar": -1,
+        "swap_offhand": False,
+    }
 
 
 def _initialize_policy(policy: CombatPolicy, checkpoints: list[Path], device: torch.device) -> None:
