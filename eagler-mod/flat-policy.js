@@ -1,11 +1,18 @@
-(function installMCAIFlatRuntime(global) {
+;(function installMCAIFlatRuntime(global) {
   'use strict'
 
   const SIZES = Object.freeze({ self: 80, opponent: 48, entity: 18, block: 20, legal: 24 })
   const LIMITS = Object.freeze({ entities: 16, blocks: 48 })
   const HEADS = Object.freeze({
-    forward: 3, strafe: 3, jump: 2, sprint: 2, sneak: 2,
-    primary: 4, release_use: 2, hotbar: 10, swap_offhand: 2
+    forward: 3,
+    strafe: 3,
+    jump: 2,
+    sprint: 2,
+    sneak: 2,
+    primary: 4,
+    release_use: 2,
+    hotbar: 10,
+    swap_offhand: 2
   })
   const PRIMARY = Object.freeze(['none', 'attack', 'use_main', 'use_offhand'])
 
@@ -42,8 +49,13 @@
       this.hidden = this.gru(fused, this.hidden)
       const logits = Object.create(null)
       for (const name of Object.keys(HEADS)) {
-        logits[name] = this.linear(this.hidden, `categorical_heads.head_${name}.weight`,
-          `categorical_heads.head_${name}.bias`, HEADS[name], 128)
+        logits[name] = this.linear(
+          this.hidden,
+          `categorical_heads.head_${name}.weight`,
+          `categorical_heads.head_${name}.bias`,
+          HEADS[name],
+          128
+        )
       }
       const cameraMean = this.linear(this.hidden, 'camera_mean.weight', 'camera_mean.bias', 2, 128)
       const value = this.linear(this.hidden, 'value_head.weight', 'value_head.bias', 1, 128)[0]
@@ -52,7 +64,9 @@
     }
 
     mlp(prefix, input, middle, output) {
-      const first = tanhArray(this.linear(input, `${prefix}.layers.0.weight`, `${prefix}.layers.0.bias`, middle, input.length))
+      const first = tanhArray(
+        this.linear(input, `${prefix}.layers.0.weight`, `${prefix}.layers.0.bias`, middle, input.length)
+      )
       return tanhArray(this.linear(first, `${prefix}.layers.2.weight`, `${prefix}.layers.2.bias`, output, middle))
     }
 
@@ -149,11 +163,21 @@
 
   function encodeSelf(state, output) {
     const values = [
-      scale(state.health, 20), scale(state.absorption, 20), scale(state.food, 20),
-      ...vector(state.velocity, 2), Math.sin(number(state.yaw)), Math.cos(number(state.yaw)),
-      scale(state.pitch, Math.PI / 2), bool(state.on_ground), bool(state.sprinting), bool(state.sneaking),
-      scale(state.hurt_time, 10), number(state.attack_cooldown), scale(state.use_ticks, 32),
-      number(state.mining_progress), scale(state.selected_hotbar, 8)
+      scale(state.health, 20),
+      scale(state.absorption, 20),
+      scale(state.food, 20),
+      ...vector(state.velocity, 2),
+      Math.sin(number(state.yaw)),
+      Math.cos(number(state.yaw)),
+      scale(state.pitch, Math.PI / 2),
+      bool(state.on_ground),
+      bool(state.sprinting),
+      bool(state.sneaking),
+      scale(state.hurt_time, 10),
+      number(state.attack_cooldown),
+      scale(state.use_ticks, 32),
+      number(state.mining_progress),
+      scale(state.selected_hotbar, 8)
     ]
     for (const name of ['none', 'main', 'off']) values.push(bool(state.active_hand === name))
     const raycast = state.raycast || {}
@@ -168,10 +192,18 @@
   function encodeOpponent(state, output) {
     const hasHealth = state.health !== null && state.health !== undefined
     const values = [
-      ...vector(state.relative_position, 12), ...vector(state.relative_velocity, 2),
-      Math.sin(number(state.yaw)), Math.cos(number(state.yaw)), scale(state.pitch, Math.PI / 2),
-      hasHealth ? scale(state.health, 20) : 0, bool(hasHealth), scale(state.hurt_time, 10),
-      bool(state.on_ground), bool(state.line_of_sight), ...item(state.mainhand), ...item(state.offhand)
+      ...vector(state.relative_position, 12),
+      ...vector(state.relative_velocity, 2),
+      Math.sin(number(state.yaw)),
+      Math.cos(number(state.yaw)),
+      scale(state.pitch, Math.PI / 2),
+      hasHealth ? scale(state.health, 20) : 0,
+      bool(hasHealth),
+      scale(state.hurt_time, 10),
+      bool(state.on_ground),
+      bool(state.line_of_sight),
+      ...item(state.mainhand),
+      ...item(state.offhand)
     ]
     for (const armor of (state.armor || []).slice(0, 4)) values.push(...item(armor).slice(0, 3))
     write(output, values)
@@ -181,8 +213,12 @@
     const kind = String(state.kind || '').toLowerCase()
     const values = [
       ...['end_crystal', 'arrow', 'snowball', 'egg', 'fireball'].map(name => bool(kind.includes(name))),
-      ...vector(state.relative_position, 12), ...vector(state.relative_velocity, 2),
-      scale(state.age_ticks, 200), scale(state.distance, 12), bool(state.raycastable), hashFeature(kind)
+      ...vector(state.relative_position, 12),
+      ...vector(state.relative_velocity, 2),
+      scale(state.age_ticks, 200),
+      scale(state.distance, 12),
+      bool(state.raycastable),
+      hashFeature(kind)
     ]
     write(output, values)
   }
@@ -193,17 +229,33 @@
     const values = [
       ...vector(state.relative_position, 6),
       ...['empty', 'solid', 'liquid', 'partial'].map(value => bool(collision === value)),
-      scale(state.hardness, 50), bool(state.replaceable), number(state.break_progress),
-      bool(state.crystal_clearance), scale(state.exposed_faces, 6), scale(state.distance, 8),
-      bool(state.within_reach), bool(state.raycastable), scale(state.sample_age_ticks, 10),
-      bool(name.includes('obsidian')), bool(name === 'bedrock' || name === 'obsidian'), hashFeature(name)
+      scale(state.hardness, 50),
+      bool(state.replaceable),
+      number(state.break_progress),
+      bool(state.crystal_clearance),
+      scale(state.exposed_faces, 6),
+      scale(state.distance, 8),
+      bool(state.within_reach),
+      bool(state.raycastable),
+      scale(state.sample_age_ticks, 10),
+      bool(name.includes('obsidian')),
+      bool(name === 'bedrock' || name === 'obsidian'),
+      hashFeature(name)
     ]
     write(output, values)
   }
 
   function encodeLegal(mask, output) {
-    const values = [1, bool(mask.attack), bool(mask.use_main), bool(mask.use_offhand), 1,
-      bool(mask.release_use), 1, bool(mask.swap_offhand)]
+    const values = [
+      1,
+      bool(mask.attack),
+      bool(mask.use_main),
+      bool(mask.use_offhand),
+      1,
+      bool(mask.release_use),
+      1,
+      bool(mask.swap_offhand)
+    ]
     const hotbar = mask.hotbar || []
     for (let index = 0; index < 9; index++) values.push(bool(hotbar[index]))
     values.push(1, 1, 1, 1, 1, 1, 1)
@@ -215,8 +267,11 @@
     const name = String(value.name || '')
     const maximum = Math.max(number(value.max_durability), 1)
     return [
-      bool(name), scale(value.count, 64), number(value.durability) / maximum,
-      scale(value.max_durability, 2000), hashFeature(name),
+      bool(name),
+      scale(value.count, 64),
+      number(value.durability) / maximum,
+      scale(value.max_durability, 2000),
+      hashFeature(name),
       (number(value.enchant_hash) % 104729) / 104729
     ]
   }
@@ -234,7 +289,7 @@
       sprint: !!argmax(logits.sprint),
       sneak: !!argmax(logits.sneak),
       yaw_delta: Math.tanh(cameraMean[0]) * Math.PI,
-      pitch_delta: Math.tanh(cameraMean[1]) * Math.PI / 2,
+      pitch_delta: (Math.tanh(cameraMean[1]) * Math.PI) / 2,
       primary: PRIMARY[primaryIndex],
       release_use: !!argmax(logits.release_use, [true, !!legal[5] && primaryIndex < 2]),
       hotbar: argmax(logits.hotbar, hotbarMask) - 1,
@@ -259,7 +314,10 @@
     const length = arrays.reduce((sum, array) => sum + array.length, 0)
     const result = new Float32Array(length)
     let offset = 0
-    for (const array of arrays) { result.set(array, offset); offset += array.length }
+    for (const array of arrays) {
+      result.set(array, offset)
+      offset += array.length
+    }
     return result
   }
 
@@ -274,22 +332,31 @@
     let result = 0
     for (let index = 0; index < values.length; index++) {
       if (mask && !mask[index]) continue
-      if (values[index] > best) { best = values[index]; result = index }
+      if (values[index] > best) {
+        best = values[index]
+        result = index
+      }
     }
     return result
   }
 
-  function sigmoid(value) { return 1 / (1 + Math.exp(-value)) }
+  function sigmoid(value) {
+    return 1 / (1 + Math.exp(-value))
+  }
   function vector(value, divisor) {
     const source = value && typeof value === 'object' ? value : {}
     return ['x', 'y', 'z'].map(axis => scale(source[axis], divisor))
   }
-  function bool(value) { return value ? 1 : 0 }
+  function bool(value) {
+    return value ? 1 : 0
+  }
   function number(value) {
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : 0
   }
-  function scale(value, divisor) { return Math.max(-4, Math.min(4, number(value) / divisor)) }
+  function scale(value, divisor) {
+    return Math.max(-4, Math.min(4, number(value) / divisor))
+  }
   function write(output, values) {
     for (let index = 0; index < Math.min(output.length, values.length); index++) output[index] = values[index]
   }
@@ -297,9 +364,11 @@
     let hash = 2166136261 >>> 0
     const bytes = typeof TextEncoder !== 'undefined' ? new TextEncoder().encode(value) : asciiBytes(value)
     for (const byte of bytes) hash = Math.imul((hash ^ byte) >>> 0, 16777619) >>> 0
-    return (hash / 0xFFFFFFFF) * 2 - 1
+    return (hash / 0xffffffff) * 2 - 1
   }
-  function asciiBytes(value) { return Array.from(unescape(encodeURIComponent(value))).map(character => character.charCodeAt(0)) }
+  function asciiBytes(value) {
+    return Array.from(unescape(encodeURIComponent(value))).map(character => character.charCodeAt(0))
+  }
 
   async function fromUrls(manifestUrl, weightsUrl) {
     const [manifestResponse, weightsResponse] = await Promise.all([fetch(manifestUrl), fetch(weightsUrl)])

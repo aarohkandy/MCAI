@@ -15,14 +15,16 @@ let maximumDifference = 0
 compare(actual.value, expected.value, 'value')
 compare(Array.from(actual.camera_mean), expected.camera_mean, 'camera_mean')
 compare(Array.from(actual.hidden), expected.hidden, 'hidden')
-for (const [name, values] of Object.entries(expected.logits)) compare(Array.from(actual.logits[name]), values, `logits.${name}`)
+for (const [name, values] of Object.entries(expected.logits))
+  compare(Array.from(actual.logits[name]), values, `logits.${name}`)
 if (maximumDifference > 1e-5) throw new Error(`flat policy parity exceeded 1e-5: ${maximumDifference}`)
 console.log(JSON.stringify({ flat_policy_maximum_difference: maximumDifference }))
 
 function compare(actualValue, expectedValue, label) {
   if (Array.isArray(expectedValue)) {
     if (actualValue.length !== expectedValue.length) throw new Error(`${label} length differs`)
-    for (let index = 0; index < expectedValue.length; index++) compare(actualValue[index], expectedValue[index], `${label}[${index}]`)
+    for (let index = 0; index < expectedValue.length; index++)
+      compare(actualValue[index], expectedValue[index], `${label}[${index}]`)
     return
   }
   const difference = Math.abs(Number(actualValue) - Number(expectedValue))

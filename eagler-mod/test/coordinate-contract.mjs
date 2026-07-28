@@ -10,5 +10,5 @@ const coordinates = context.MCAICoordinates
 assert.ok(Math.abs(coordinates.canonicalYaw(0) - Math.PI) < 1e-12)
 assert.ok(Math.abs(coordinates.canonicalYaw(90) - Math.PI / 2) < 1e-12)
 assert.ok(Math.abs(coordinates.canonicalPitch(-30) - Math.PI / 6) < 1e-12)
-assert.ok(Math.abs(coordinates.minecraftYawDelta(0.25) + 0.25 * 180 / Math.PI) < 1e-12)
-assert.ok(Math.abs(coordinates.minecraftPitchDelta(-0.5) - 0.5 * 180 / Math.PI) < 1e-12)
+assert.ok(Math.abs(coordinates.minecraftYawDelta(0.25) + (0.25 * 180) / Math.PI) < 1e-12)
+assert.ok(Math.abs(coordinates.minecraftPitchDelta(-0.5) - (0.5 * 180) / Math.PI) < 1e-12)
