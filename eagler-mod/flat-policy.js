@@ -272,7 +272,7 @@
       number(value.durability) / maximum,
       scale(value.max_durability, 2000),
       hashFeature(name),
-      (number(value.enchant_hash) % 104729) / 104729
+      (((number(value.enchant_hash) % 104729) + 104729) % 104729) / 104729
     ]
   }
 
