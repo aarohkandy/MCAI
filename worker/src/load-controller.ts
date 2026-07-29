@@ -1,4 +1,3 @@
-import os from 'node:os'
 import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks'
 import type { ArenaClient } from './arena-client.js'
 
@@ -67,11 +66,14 @@ export class LoadController {
     const p95Ms = this.histogram.percentile(95) / 1e6
     this.histogram.reset()
     try {
+      // Use ONLY the plugin-reported JVM heap fraction. This previously also blended in
+      // `1 - os.freemem()/os.totalmem()`, but os.freemem() reports strictly-free physical RAM
+      // (excluding reclaimable page cache), so on a warm host it sits near zero and that term
+      // evaluates to ~0.97 — permanently above the 0.8 overload threshold. The controller then
+      // collapsed concurrency to 1 pair on its first sample and could never recover, because
+      // stableSamples reset on every subsequent sample. On a large VM that silently wasted
+      // almost all of the paid-for cores. Paper's own heap pressure is the signal that matters.
       const status = await this.arena.request('status')
-      status.memory_fraction = Math.max(
-        Number(status.memory_fraction ?? 0),
-        1 - os.freemem() / Math.max(1, os.totalmem())
-      )
       const decision = this.evaluate(status, p95Ms)
       if (decision !== 'hold') {
         await this.arena.request('set_max_pairs', { pairs: this.pairs })

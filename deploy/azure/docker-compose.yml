@@ -23,6 +23,10 @@ services:
       MCAI_ROLLOUT_STEPS: "${MCAI_ROLLOUT_STEPS:-8192}"
       MCAI_JAVA_MEMORY: "${MCAI_JAVA_MEMORY:-4G}"
       MCAI_TORCH_THREADS: "${MCAI_TORCH_THREADS:-0}"
+      # Must be 0.0.0.0 inside the container; the port is published only to the host loopback.
+      MCAI_DASHBOARD_HOST: "0.0.0.0"
+      # Arena pairs the plugin will allow. Size to the VM (~1 pair per 4 vCPU).
+      MCAI_MAX_PAIRS: "${MCAI_MAX_PAIRS:-4}"
     stop_grace_period: 30s
     restart: unless-stopped
 volumes:

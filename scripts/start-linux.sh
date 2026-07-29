@@ -29,7 +29,18 @@ JAVA_INITIAL="${MCAI_JAVA_INITIAL_MEMORY:-1G}"
 MODE="${MCAI_MODE:-sword}"
 case "$MODE" in sword|crystal|combined) ;; *) echo "MCAI_MODE must be sword, crystal, or combined" >&2; exit 1 ;; esac
 
-for required in "$PYTHON" "$RUNTIME/paper-1.12.2.jar" "$ROOT/worker/dist/src/index.js"; do
+# MCAI_VENV_PYTHON may be a bare command ("python3", as the container sets it) or an absolute path
+# to a venv interpreter. Resolve it as a command first; only fall back to a path test. A plain
+# `[ -e "$PYTHON" ]` fails for a bare name and would abort before anything starts.
+if ! command -v "$PYTHON" >/dev/null 2>&1 && [ ! -x "$PYTHON" ]; then
+  echo "Python interpreter not found: $PYTHON (set MCAI_VENV_PYTHON). Run the bootstrap first." >&2
+  exit 1
+fi
+"$PYTHON" -c 'import combat_ai' 2>/dev/null || {
+  echo "The combat_ai package is not importable by $PYTHON. Install it: pip install -e trainer" >&2
+  exit 1
+}
+for required in "$RUNTIME/paper-1.12.2.jar" "$ROOT/worker/dist/src/index.js"; do
   [ -e "$required" ] || { echo "Missing $required. Run the bootstrap first." >&2; exit 1; }
 done
 

@@ -214,8 +214,12 @@ const server = http.createServer(async (request, response) => {
   response.writeHead(404).end('Not found')
 })
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(JSON.stringify({ event: 'dashboard_ready', url: `http://127.0.0.1:${port}`, run_directory: runDirectory }))
+// Loopback by default. In a container the server must bind 0.0.0.0 to be reachable through
+// Docker's port forward at all (the container has its own loopback), which stays private because
+// compose publishes the port only to the HOST's 127.0.0.1 and only port 22 is open on the VM.
+const bindHost = process.env.MCAI_DASHBOARD_HOST || '127.0.0.1'
+server.listen(port, bindHost, () => {
+  console.log(JSON.stringify({ event: 'dashboard_ready', url: `http://${bindHost}:${port}`, run_directory: runDirectory }))
 })
 connectArena()
 setInterval(refreshArenaStatus, 1000).unref()

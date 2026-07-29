@@ -43,6 +43,8 @@ export class RolloutWorker {
   private stopped = false
   private reconnectingAgents = new Map<string, NodeJS.Timeout>()
   private readonly demos: DemoRecorder | null
+  private staleBatches = 0
+  private readonly warnedUnknownAgents = new Set<string>()
 
   constructor(private readonly options: WorkerOptions) {
     this.demos = options.demoOutput ? new DemoRecorder(options.demoOutput) : null
@@ -199,10 +201,30 @@ export class RolloutWorker {
   }
 
   private onActions(batch: ActionBatch): void {
-    if (batch.sequence < this.sequence - 4) return
+    if (batch.sequence < this.sequence - 4) {
+      // Stale actions are correctly discarded, but silence here hides a real failure mode: the
+      // trainer runs its PPO update synchronously on its event loop, so if it falls persistently
+      // behind, EVERY batch arrives stale and the bots stop acting on the policy entirely.
+      this.staleBatches += 1
+      if (this.staleBatches % 50 === 1) {
+        console.warn(`[trainer] discarded ${this.staleBatches} stale action batches ` +
+          `(latest lag ${this.sequence - batch.sequence} ticks). If this climbs steadily the ` +
+          `trainer cannot keep up with the rollout rate; lower MCAI_BOT_COUNT or rollout steps.`)
+      }
+      return
+    }
     this.policyVersion = batch.policy_version
     for (const agent of this.agents) agent.setPolicyVersion(this.policyVersion)
-    for (const entry of batch.actions) this.byId.get(entry.agent_id)?.queueAction(entry.action)
+    for (const entry of batch.actions) {
+      const agent = this.byId.get(entry.agent_id)
+      if (agent) agent.queueAction(entry.action)
+      else if (!this.warnedUnknownAgents.has(entry.agent_id)) {
+        // Usually means the arena paired a bot before register_agent completed, so events are
+        // addressed to a raw username the worker does not know.
+        this.warnedUnknownAgents.add(entry.agent_id)
+        console.warn(`[trainer] action for unknown agent_id ${entry.agent_id}; it will be ignored`)
+      }
+    }
   }
 
   private onArenaEvent(event: ArenaEvent): void {

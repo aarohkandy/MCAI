@@ -249,6 +249,15 @@ public final class ArenaManager {
         List<Player> waiting = new ArrayList<Player>();
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (!player.getName().startsWith(botPrefix) || player.isDead() || byPlayer.containsKey(player.getUniqueId())) continue;
+            // Only auto-pair accounts a worker has explicitly registered via register_agent. This
+            // does two things:
+            //  1. Keeps a human spectator/opponent out of training. MCAI_BROWSER matches the bot
+            //     prefix, so without this an Eaglercraft player joining is instantly dragged into a
+            //     match, inventory cleared and teleported. Manual start_match still works for them.
+            //  2. Closes a race: bots connect during worker construction but register a few ticks
+            //     later, and pairing first meant events were addressed to a raw username the worker
+            //     had never mapped, so match_started/step_feedback were silently discarded.
+            if (!agentByUsername.containsKey(player.getName().toLowerCase())) continue;
             if (cooldownUntil.getOrDefault(player.getUniqueId(), 0L) > tick) continue;
             waiting.add(player);
         }

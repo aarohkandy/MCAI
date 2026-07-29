@@ -85,9 +85,10 @@ MCAI VM, disk, and every checkpoint** along with it. Keep MCAI in its own resour
 ### What I still need from you
 - **A decision on (a)/(b) above**, and confirmation to proceed (provisioning spends real money —
   I won't do it off the back of a document).
-- An **SSH key**. You already have a usable pair at `~/.ssh/winver_ed25519(.pub)` — reuse it, or
-  make a dedicated one: `ssh-keygen -t ed25519 -f ~/.ssh/azure_mcai -C mcai`. You keep the private
-  key; I never handle it. (Using Cloud Shell? It can generate the key for you at VM-create time.)
+- **Nothing for SSH if you use Cloud Shell** — the commands use `--generate-ssh-keys`, which creates
+  or reuses a key inside Cloud Shell. (Your Mac key `~/.ssh/winver_ed25519` is *not* visible to Cloud
+  Shell, so it cannot be referenced there. Running the CLI locally instead? Swap in
+  `--ssh-key-values ~/.ssh/winver_ed25519.pub` and add `-i ~/.ssh/winver_ed25519` when you ssh.)
 - A one-time **quota bump** if you pick 16+ vCPUs (see step 2).
 - Your explicit **Minecraft EULA acceptance** — you set `MCAI_ACCEPT_EULA=true` (step 4). I won't
   accept it for you.
@@ -99,14 +100,26 @@ MCAI VM, disk, and every checkpoint** along with it. Keep MCAI in its own resour
 ## 2. Pick a size — and strongly consider Spot
 Pay-as-you-go vs **Spot** (Spot is what your R_SIM runbook uses; 70–90% cheaper):
 
-| SKU | vCPU / RAM | ~$/hr PAYG | ~$/hr Spot | hours in $500 (Spot) |
+| SKU | vCPU / RAM | ~$/hr PAYG | ~$/hr Spot | hours in $100 (Spot) |
 |-----|-----------|-----------|-----------|----------------------|
-| `Standard_F8s_v2`  | 8 / 16 GB  | ~$0.34 | ~$0.07–0.15 | ~3,300–7,000 |
-| `Standard_F16s_v2` | 16 / 32 GB | ~$0.68 | ~$0.15–0.30 | ~1,600–3,300 |
-| `Standard_F32s_v2` | 32 / 64 GB | ~$1.35 | ~$0.30–0.60 | ~830–1,600 |
+| `Standard_F8s_v2`  | 8 / 16 GB  | ~$0.34 | ~$0.07–0.15 | ~660–1,400 |
+| `Standard_F16s_v2` | 16 / 32 GB | ~$0.68 | ~$0.15–0.30 | ~330–660 |
+| `Standard_F32s_v2` | 32 / 64 GB | ~$1.35 | ~$0.30–0.60 | ~165–330 |
 
-**Recommendation for your $500 + "make it perfect" goal: `Standard_F32s_v2` on Spot.** It doubles
-experience throughput vs F16 and *still* buys far more training hours than F16 at PAYG.
+Spot rates above are indicative only — **they float by region and time, and can approach PAYG
+under demand.** Check the live rate before committing:
+```bash
+az vm list-skus -l eastus2 --size Standard_F --query "[?name=='Standard_F16s_v2'].name" -o tsv
+# Live Spot price (no auth needed):
+curl -s "https://prices.azure.com/api/retail/prices?\$filter=armRegionName%20eq%20'eastus2'%20and%20skuName%20eq%20'F16s%20v2%20Spot'" | head -c 400
+```
+
+**Recommendation for a $100 budget: `Standard_F16s_v2` on Spot, and cap it with `--max-price`.**
+16 vCPU comfortably runs ~4 arena pairs (8 bots). F32 is tempting but at $100 the extra throughput
+mostly buys you a shorter calendar window, and eviction risk rises with the larger SKU.
+
+> **$100 reality:** at ~$0.20/hr Spot that is ~500 hours ≈ 20 days of continuous training, minus
+> the disk (below). Budget for ~2 weeks of runtime, not a month.
 
 **The Spot tradeoff, honestly:** Azure can **evict** the VM at any time when it needs capacity.
 R_SIM tolerates this because its runs are 10–30 minutes. MCAI training runs for days, so you *will*
@@ -117,11 +130,13 @@ get evicted sometimes. Why it's still the right call here:
 
 If you want zero babysitting, use regular (PAYG) pricing instead and drop `--priority Spot ...`.
 
-Default subscriptions often cap the **Fsv2 family at 10 vCPUs** per region. For F16s_v2/F32s_v2,
-request an increase first:
+Default subscriptions cap vCPUs per family. **Spot draws on a SEPARATE pool** — checking only the
+Fsv2 quota will mislead you. Check both:
 ```bash
-az vm list-usage --location eastus2 -o table | grep -i fsv2   # see current limit
-# Portal: Subscriptions → Usage + quotas → search "Fsv2" → request increase (usually auto-approved)
+az vm list-usage --location eastus2 -o table | grep -iE "fsv2|standardfsv2"        # regular
+az vm list-usage --location eastus2 -o table | grep -i "spot"                      # Spot pool
+# Portal: Subscriptions -> Usage + quotas -> request an increase for BOTH
+#   "Standard FSv2 Family vCPUs" and "Total Regional Spot vCPUs" (usually auto-approved)
 ```
 
 ## 3. Provision the VM
@@ -133,30 +148,32 @@ SUBSCRIPTION=8ffcf316-2929-4aaa-9374-3811655b650a
 RG=mcai-rg                    # NOT rsim-compute — see the teardown warning above
 LOCATION=eastus2
 VM=mcai-train
-SIZE=Standard_F32s_v2
+SIZE=Standard_F16s_v2
 
 az account set --subscription "$SUBSCRIPTION"
 az group create -n "$RG" -l "$LOCATION"      # needs your account, not the RG-scoped SP
 
-# Budget + alert BEFORE the VM (mirrors the R_SIM guardrail).
-az consumption budget create-with-rg \
-  --budget-name mcai-cap --resource-group "$RG" \
-  --category Cost --amount 500 --time-grain Monthly \
-  --start-date "$(date +%Y-%m-01)" --end-date "2030-01-01" \
-  || echo "Set a \$500 budget + alert in the portal (Cost Management → Budgets) before continuing."
+# BUDGET FIRST. The `az consumption budget` CLI surface has changed repeatedly and its flags differ
+# by CLI version, so set this in the PORTAL where it always works:
+#   Cost Management -> Budgets -> Add -> scope = resource group mcai-rg
+#   amount 100, monthly, alerts at 50% / 80% / 100% to your email.
+# Do not skip it: it is the only thing that will tell you if Spot pricing spikes.
 
 az vm create -g "$RG" -n "$VM" \
   --image Ubuntu2204 --size "$SIZE" \
-  --priority Spot --max-price -1 --eviction-policy Deallocate \
+  --priority Spot --max-price 0.30 --eviction-policy Deallocate \
   --admin-username azureuser \
-  --ssh-key-values ~/.ssh/winver_ed25519.pub \
+  --generate-ssh-keys \
   --os-disk-size-gb 128 --storage-sku Premium_LRS \
   --public-ip-sku Standard
 
-# Lock the network down to SSH only (nothing else is exposed; the dashboard is reached by tunnel).
-az vm open-port -g "$RG" -n "$VM" --port 22 --priority 100
+# NOTE: `az vm create` already provisions an NSG that allows inbound SSH (22) and nothing else, so
+# no `az vm open-port` call is needed. Adding one would only widen the rule. The dashboard is never
+# exposed; you reach it through the SSH tunnel in section 5.
 ```
-Drop the `--priority Spot --max-price -1 --eviction-policy Deallocate` line for a regular VM.
+Drop the `--priority Spot --max-price ... --eviction-policy Deallocate` line for a regular VM.
+`--generate-ssh-keys` makes Cloud Shell create/reuse a key in *its own* `~/.ssh` — the key on your
+Mac is not readable from Cloud Shell, which is why the local path is not referenced here.
 
 ### If Spot evicts the VM
 ```bash
@@ -165,7 +182,7 @@ az vm start -g mcai-rg -n mcai-train     # disk + checkpoints intact; compose au
 
 ## 4. Deploy on the VM
 ```bash
-ssh -i ~/.ssh/winver_ed25519 azureuser@<public-ip>
+ssh azureuser@<public-ip>   # Cloud Shell: key already in place
 
 # Docker + compose plugin
 curl -fsSL https://get.docker.com | sudo sh
@@ -186,7 +203,7 @@ move to `crystal`/`combined` after sword is competent.
 ## 5. Watch the dashboard (SSH tunnel — never exposed publicly)
 From your machine:
 ```bash
-ssh -i ~/.ssh/winver_ed25519 -L 8788:localhost:8788 azureuser@<public-ip>
+ssh -L 8788:localhost:8788 azureuser@<public-ip>
 # then open http://localhost:8788
 ```
 
@@ -204,11 +221,25 @@ cd deploy/azure && docker compose restart      # rebuilds changed code, resumes 
   docker compose restart
   ```
 
-## 7. Cost control (do this)
+## 7. Cost control (this is what protects your $100)
 ```bash
-az vm deallocate -g mcai-rg -n mcai-train   # stop billing compute (keeps disk + checkpoints)
-az vm start      -g mcai-rg -n mcai-train   # resume later
+az vm deallocate -g mcai-rg -n mcai-train   # stops COMPUTE billing (disk keeps billing, see below)
+az vm start      -g mcai-rg -n mcai-train   # resume; training resumes from latest.pt
 ```
+**Deallocate does not make it free.** The 128 GB Premium SSD keeps billing at roughly **$18–20/month**
+even while the VM is off — about a fifth of your whole budget if you leave it parked for a month.
+
+**When you are done, tear it down (this is the only way to reach $0):**
+```bash
+# 1. pull the trained model off the VM FIRST — deleting the group destroys the disk
+docker compose -f deploy/azure/docker-compose.yml cp mcai:/data/checkpoints ./checkpoints-azure  # on the VM
+scp -r azureuser@<public-ip>:~/MCAI/checkpoints-azure ./                                          # to your Mac
+# 2. destroy everything in one shot
+az group delete -n mcai-rg --yes --no-wait
+az group show  -n mcai-rg 2>/dev/null && echo "still deleting..." || echo "gone - \$0 ongoing"
+```
+Cheaper alternative if you want to pause for a long time: snapshot the disk, delete the VM, and
+restore later — a snapshot costs far less than a live Premium SSD.
 
 ## Data & persistence
 Checkpoints, run logs, the Paper runtime, and the Maven cache live in the `mcai-data` Docker

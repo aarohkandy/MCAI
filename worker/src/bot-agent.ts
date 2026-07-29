@@ -51,7 +51,12 @@ export class BotAgent {
       }
       this.controls.emergencyStop()
     })
-    this.bot.on('kicked', reason => this.controls.emergencyStop())
+    this.bot.on('kicked', (reason: unknown) => {
+      // Without this a whitelist/version rejection is completely silent: the worker just
+      // reports zero spawned agents forever while reconnecting every 2s.
+      console.warn(`[bot] ${this.options.username} kicked:`, typeof reason === 'string' ? reason : JSON.stringify(reason))
+      this.controls.emergencyStop()
+    })
     this.bot.on('end', () => {
       this.controls.emergencyStop()
       this.options.onDisconnected?.(this)

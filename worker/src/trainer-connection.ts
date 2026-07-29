@@ -13,6 +13,7 @@ export class TrainerConnection extends EventEmitter {
   private socket: WebSocket | null = null
   private reconnectTimer: NodeJS.Timeout | null = null
   private closed = false
+  private ready = false
 
   constructor(
     private readonly url: string,
@@ -62,15 +63,31 @@ export class TrainerConnection extends EventEmitter {
         capabilities: ['minecraft-1.12.2', 'structured-state', 'legal-controls-v1']
       }
       socket.send(encode(hello))
-      this.emit('ready')
+      // 'ready' is deliberately NOT emitted here. A TCP/WebSocket open only means the port
+      // accepted us; the trainer may still be loading a checkpoint or unable to serve actions.
+      // Emitting on open disables the scripted fallback exactly when it is still needed, leaving
+      // bots idle. We emit once the trainer answers (hello_ack, or any action_batch).
     })
     socket.on('message', data => {
       try {
         const bytes = data instanceof Buffer ? data : new Uint8Array(data as ArrayBuffer)
         const message = decode(bytes) as WireMessage
         if (message.schema_version !== SCHEMA_VERSION) throw new Error('trainer uses an incompatible schema')
+        // The trainer has proven it can actually serve us; only now retire the scripted fallback.
+        if (!this.ready) {
+          this.ready = true
+          this.emit('ready')
+        }
         if (message.type === 'action_batch') this.emit('actions', message as ActionBatch)
-        else this.emit('message', message)
+        else {
+          // Surface trainer-side errors instead of silently dropping them; a control/error frame
+          // is usually the only evidence that the trainer rejected our batches.
+          const control = message as { command?: string; payload?: { message?: string } }
+          if (control.command === 'error') {
+            this.emit('error', new Error(`trainer error: ${control.payload?.message ?? 'unknown'}`))
+          }
+          this.emit('message', message)
+        }
       } catch (error) {
         this.emit('error', error)
       }
@@ -78,6 +95,7 @@ export class TrainerConnection extends EventEmitter {
     socket.on('error', error => this.emit('error', error))
     socket.on('close', () => {
       if (this.socket === socket) this.socket = null
+      this.ready = false
       this.emit('disconnected')
       this.scheduleReconnect()
     })

@@ -77,6 +77,31 @@ def _write_bukkit_limits(path: Path) -> None:
     path.write_text("\n".join(output) + "\n", encoding="utf-8")
 
 
+# Ticks before a spent arrow despawns. Vanilla/Paper default is 1200 (60s), but the kit's bow has
+# Infinity, so a bot that spams it can leave dozens of arrows alive at once. The observation only
+# exposes the 16 nearest combat entities, so those arrows would evict end crystals from the policy's
+# view — exactly the entities crystal PvP depends on. 100 ticks (5s) keeps arrows visible while they
+# are still in flight and relevant, without letting them accumulate.
+# NOTE: player-fired arrows (which is all of them here) are governed by spigot.yml's
+# `arrow-despawn-rate`; paper.yml only carries the non-player variant. Both are set.
+ARROW_LIMITS = {"arrow-despawn-rate": "100", "non-player-arrow-despawn-rate": "100"}
+
+
+def _write_arrow_limits(path: Path) -> None:
+    if not path.exists():
+        return
+    lines = path.read_text(encoding="utf-8").splitlines()
+    output: list[str] = []
+    for line in lines:
+        key = line.strip().split(":", 1)[0].strip()
+        if key in ARROW_LIMITS and line.strip().endswith(tuple("0123456789")):
+            indent = line[: len(line) - len(line.lstrip())]
+            output.append(f"{indent}{key}: {ARROW_LIMITS[key]}")
+            continue
+        output.append(line)
+    path.write_text("\n".join(output) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("runtime", type=Path)
@@ -108,6 +133,8 @@ def main() -> None:
         "difficulty": "2",
     })
     _write_bukkit_limits(runtime / "bukkit.yml")
+    _write_arrow_limits(runtime / "paper.yml")
+    _write_arrow_limits(runtime / "spigot.yml")
     names = [f"{arguments.prefix}{index:03d}" for index in range(1, arguments.bots + 1)]
     names.append(f"{arguments.prefix}BROWSER")
     names.append("AIWatcher")

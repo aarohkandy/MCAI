@@ -63,6 +63,27 @@ fi
 echo "[entrypoint] configuring server.properties + whitelist for $BOTS bots..."
 python3 scripts/configure_runtime.py "$RUNTIME" --bind 127.0.0.1 --bots "$BOTS"
 
+# Write the arena plugin config, mirroring scripts/bootstrap-windows.ps1. Without this the plugin
+# keeps its bundled default of 2 concurrent pairs no matter how large the VM is, so most of the
+# paid-for cores would sit idle.
+MODE="${MCAI_MODE:-sword}"
+case "$MODE" in sword|crystal|combined) ;; *) echo "MCAI_MODE must be sword, crystal, or combined" >&2; exit 1 ;; esac
+MAX_PAIRS="${MCAI_MAX_PAIRS:-$(( BOTS / 2 ))}"
+[ "$MAX_PAIRS" -ge 1 ] 2>/dev/null || MAX_PAIRS=1
+mkdir -p "$RUNTIME/plugins/MCAIArena"
+cat > "$RUNTIME/plugins/MCAIArena/config.yml" <<CONFIG
+world-name: mcai_training
+control-port: 8765
+max-concurrent-pairs: $MAX_PAIRS
+bot-name-prefix: MCAI_
+match-timeout-seconds: 120
+auto-pair-bots: true
+default-mode: $MODE
+arena-spacing: 96
+shaping-scale: 1.0
+CONFIG
+echo "[entrypoint] arena config: mode=$MODE max-concurrent-pairs=$MAX_PAIRS bots=$BOTS"
+
 export MCAI_VENV_PYTHON=python3
 export MCAI_RUN_DIR="$RUN_BASE/linux-$(date +%Y%m%d-%H%M%S)"
 echo "[entrypoint] launching the training stack..."
