@@ -22,7 +22,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="mcai-trainer")
     subparsers = parser.add_subparsers(dest="command", required=True)
     server = subparsers.add_parser("serve", help="run inference and online recurrent PPO")
-    server.add_argument("--host", default="0.0.0.0")
+    # Loopback by default so the trainer control/inference socket is not exposed on the LAN;
+    # pass --host 0.0.0.0 deliberately (behind a firewall) to allow remote rollout workers.
+    server.add_argument("--host", default="127.0.0.1")
     server.add_argument("--port", type=int, default=8766)
     server.add_argument("--checkpoints", type=Path, default=Path("checkpoints"))
     server.add_argument("--rollout-steps", type=int, default=8192)

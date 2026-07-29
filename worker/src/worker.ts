@@ -7,6 +7,7 @@ import {
 } from './contracts.js'
 import { ArenaClient, type ArenaEvent } from './arena-client.js'
 import { BotAgent } from './bot-agent.js'
+import { DemoRecorder } from './demo-recorder.js'
 import { LoadController } from './load-controller.js'
 import { scriptedAction, type ScriptedStyle } from './scripted-policy.js'
 import { TrainerConnection } from './trainer-connection.js'
@@ -20,6 +21,10 @@ export type WorkerOptions = {
   arenaPort: number
   botCount: number
   usernamePrefix: string
+  /** Write scripted-teacher (observation, action) pairs here as behavior-cloning JSONL. */
+  demoOutput?: string
+  /** Keep using the scripted teacher even when the trainer is connected (for demo capture). */
+  forceScripted?: boolean
 }
 
 export class RolloutWorker {
@@ -37,8 +42,10 @@ export class RolloutWorker {
   private arenaConnecting = false
   private stopped = false
   private reconnectingAgents = new Map<string, NodeJS.Timeout>()
+  private readonly demos: DemoRecorder | null
 
   constructor(private readonly options: WorkerOptions) {
+    this.demos = options.demoOutput ? new DemoRecorder(options.demoOutput) : null
     this.agents = Array.from({ length: options.botCount }, (_, index) => this.createAgent(index))
     this.byId = new Map(this.agents.map(agent => [agent.id, agent]))
     this.trainer = new TrainerConnection(options.trainerUrl, options.workerId, this.agents.map(agent => agent.id))
@@ -63,7 +70,9 @@ export class RolloutWorker {
       this.scheduleArenaReconnect()
     })
     await this.connectArena()
-    this.timer = setInterval(() => void this.tick(), 50)
+    this.timer = setInterval(() => {
+      this.tick().catch(error => console.warn('[worker] tick failed', String(error)))
+    }, 50)
   }
 
   async stop(): Promise<void> {
@@ -78,6 +87,10 @@ export class RolloutWorker {
     this.loadController.stop()
     this.arena.close()
     for (const agent of this.agents) agent.disconnect()
+    if (this.demos) {
+      console.info(`[demo] recorded ${this.demos.count} scripted (observation, action) pairs`)
+      await this.demos.close()
+    }
   }
 
   private createAgent(index: number): BotAgent {
@@ -145,18 +158,33 @@ export class RolloutWorker {
     try {
       const ready = this.agents.filter(agent => agent.isSpawned())
       if (ready.length === 0) return
-      const steps = await Promise.all(ready.map(async agent => {
-        const { observation, feedback } = await agent.step()
-        if (!this.trainerReady) agent.queueAction(scriptedAction(observation, styleFor(agent.id)))
-        return {
-          agent_id: agent.id,
-          observation,
-          reward: feedback.reward,
-          terminated: feedback.terminated,
-          truncated: feedback.truncated,
-          info: feedback.info
+      const results = await Promise.all(ready.map(async agent => {
+        try {
+          const { observation, feedback } = await agent.step()
+          // forceScripted lets an operator generate behavior-cloning demonstrations from the
+          // scripted teacher even while the trainer is connected.
+          if (!this.trainerReady || this.options.forceScripted) {
+            const teacherAction = scriptedAction(observation, styleFor(agent.id))
+            agent.queueAction(teacherAction)
+            this.demos?.record(observation, teacherAction)
+          }
+          return {
+            agent_id: agent.id,
+            observation,
+            reward: feedback.reward,
+            terminated: feedback.terminated,
+            truncated: feedback.truncated,
+            info: feedback.info
+          }
+        } catch (error) {
+          // A single agent failing (e.g. despawned mid-step) must not drop every other
+          // agent's step or reject tick() into an unhandled rejection.
+          console.warn('[worker] agent step failed', agent.id, String(error))
+          return null
         }
       }))
+      const steps = results.filter((step): step is NonNullable<typeof step> => step !== null)
+      if (steps.length === 0) return
       const batch: StepBatch = {
         schema_version: SCHEMA_VERSION,
         type: 'step_batch',
@@ -216,7 +244,9 @@ export function optionsFromEnvironment(): WorkerOptions {
     arenaHost: process.env.MCAI_ARENA_HOST ?? '127.0.0.1',
     arenaPort: integerEnv('MCAI_ARENA_PORT', 8765),
     botCount: integerEnv('MCAI_BOT_COUNT', 4),
-    usernamePrefix: process.env.MCAI_USERNAME_PREFIX ?? 'MCAI_'
+    usernamePrefix: process.env.MCAI_USERNAME_PREFIX ?? 'MCAI_',
+    demoOutput: process.env.MCAI_DEMO_OUT || undefined,
+    forceScripted: process.env.MCAI_FORCE_SCRIPTED === 'true'
   }
 }
 

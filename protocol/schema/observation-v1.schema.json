@@ -177,7 +177,7 @@
         "use_offhand": { "type": "boolean" },
         "release_use": { "type": "boolean" },
         "swap_offhand": { "type": "boolean" },
-        "hotbar": { "type": "array", "minItems": 10, "maxItems": 10, "items": { "type": "boolean" } }
+        "hotbar": { "type": "array", "minItems": 9, "maxItems": 9, "items": { "type": "boolean" } }
       }
     }
   }

@@ -15,13 +15,13 @@ sys.path.insert(0, str(ROOT / "trainer" / "tests"))
 from combat_ai.export import ExportWrapper, export_flat_weights, export_onnx  # noqa: E402
 from combat_ai.features import batch_observations  # noqa: E402
 from combat_ai.model import CATEGORICAL_SIZES, CombatPolicy  # noqa: E402
-from fixtures import observation  # noqa: E402
+from fixtures import parity_observation  # noqa: E402
 
 
 def main() -> None:
     torch.manual_seed(73)
     policy = CombatPolicy().eval()
-    value = observation()
+    value = parity_observation()
     features = batch_observations([value])
     hidden = policy.initial_hidden(1, "cpu")
     with torch.no_grad():
@@ -36,9 +36,7 @@ def main() -> None:
         directory = Path(temporary)
         manifest = directory / "policy.manifest.json"
         weights = directory / "policy.weights.bin"
-        onnx = directory / "policy.onnx"
         export_flat_weights(policy, manifest, weights)
-        export_onnx(policy, onnx)
         observation_file = directory / "observation.json"
         expected_file = directory / "expected.json"
         observation_file.write_text(json.dumps(value), encoding="utf-8")
@@ -49,9 +47,15 @@ def main() -> None:
             str(observation_file), str(expected_file),
         ], check=True, text=True, capture_output=True)
         result = {"pytorch_vs_browser": json.loads(completed.stdout)}
+        # The ONNX export (which needs the `onnx` package) and the onnxruntime comparison
+        # are entirely optional: the browser/flat parity above must not depend on them.
         try:
+            import onnx  # noqa: F401 -- required by torch.onnx.export; guarded so absence degrades gracefully
             import onnxruntime as ort
-            session = ort.InferenceSession(str(onnx), providers=["CPUExecutionProvider"])
+
+            onnx_path = directory / "policy.onnx"
+            export_onnx(policy, onnx_path)
+            session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
             inputs = {name: tensor.detach().numpy() for name, tensor in zip(
                 ["self_state", "opponent", "opponent_mask", "entities", "entity_mask",
                  "blocks", "block_mask", "legal", "hidden"], (*features.as_tuple(), hidden)
@@ -64,7 +68,7 @@ def main() -> None:
                 raise RuntimeError(f"ONNX parity exceeded 1e-5: {maximum}")
             result["pytorch_vs_onnx_maximum_difference"] = maximum
         except ImportError:
-            result["pytorch_vs_onnx"] = "onnxruntime not installed"
+            result["pytorch_vs_onnx"] = "onnx/onnxruntime not installed"
         print(json.dumps(result, indent=2))
 
 

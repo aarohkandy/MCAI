@@ -48,8 +48,11 @@ export class TrainerConnection extends EventEmitter {
     if (this.closed) return
     const socket = new WebSocket(this.url)
     socket.binaryType = 'arraybuffer'
+    // Track the socket while it is still connecting so close() can tear it down; isReady()
+    // already gates sends on readyState === OPEN.
+    this.socket = socket
     socket.on('open', () => {
-      this.socket = socket
+      if (this.closed) { socket.close(); return }
       const hello: HelloMessage = {
         schema_version: SCHEMA_VERSION,
         type: 'hello',

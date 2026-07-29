@@ -74,10 +74,10 @@ export class ObservationBuilder {
     const position = toVec3Value(entity.position)
     const equipment: any[] = Array.isArray(entity.equipment) ? entity.equipment : []
     return {
-      relative_position: egocentric(subtract(position, selfPosition), this.bot.entity.yaw ?? 0),
+      relative_position: egocentric(subtract(position, selfPosition), this.bot.entity?.yaw ?? 0),
       relative_velocity: egocentric(
-        subtract(toVec3Value(entity.velocity), toVec3Value(this.bot.entity.velocity)),
-        this.bot.entity.yaw ?? 0
+        subtract(toVec3Value(entity.velocity), toVec3Value(this.bot.entity?.velocity)),
+        this.bot.entity?.yaw ?? 0
       ),
       yaw: finite(entity.yaw, 0),
       pitch: finite(entity.pitch, 0),
@@ -103,10 +103,10 @@ export class ObservationBuilder {
           id,
           slot: {
             kind: entityKind(entity),
-            relative_position: egocentric(subtract(position, selfPosition), this.bot.entity.yaw ?? 0),
+            relative_position: egocentric(subtract(position, selfPosition), this.bot.entity?.yaw ?? 0),
             relative_velocity: egocentric(
-              subtract(toVec3Value(entity.velocity), toVec3Value(this.bot.entity.velocity)),
-              this.bot.entity.yaw ?? 0
+              subtract(toVec3Value(entity.velocity), toVec3Value(this.bot.entity?.velocity)),
+              this.bot.entity?.yaw ?? 0
             ),
             age_ticks: Math.max(0, tick - (this.entityBornTick.get(id) ?? tick)),
             distance: distance(selfPosition, position),

@@ -19,14 +19,23 @@ export function toVec3Value(value: { x?: number; y?: number; z?: number } | null
   }
 }
 
-/** Rotate a world-space delta into the controlled player's frame. */
+/**
+ * Rotate a world-space delta into the controlled player's egocentric frame.
+ *
+ * The player's forward vector is (-sin yaw, 0, -cos yaw) (mineflayer/eagler canonical
+ * yaw). A correct egocentric frame is yaw-invariant: something directly ahead must map
+ * to the same coordinates at every yaw. That requires R(+yaw) here — the previous
+ * R(-yaw) sent "directly ahead" to (-sin 2·yaw, …), i.e. it rotated with the player
+ * instead of cancelling the rotation, corrupting every relative position/velocity at
+ * non-zero yaw. Verified: forward(yaw) -> (0, 0, -1) for all yaw with the signs below.
+ */
 export function egocentric(delta: Vec3Value, yaw: number): Vec3Value {
   const sin = Math.sin(yaw)
   const cos = Math.cos(yaw)
   return {
-    x: delta.x * cos + delta.z * sin,
+    x: delta.x * cos - delta.z * sin,
     y: delta.y,
-    z: -delta.x * sin + delta.z * cos
+    z: delta.x * sin + delta.z * cos
   }
 }
 

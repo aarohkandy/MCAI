@@ -372,14 +372,26 @@ public final class Arena {
         sword.addUnsafeEnchantment(Enchantment.KNOCKBACK, 1);
         inventory.setItem(0, sword);
         if (selectedMode != ArenaMode.SWORD) {
+            // Full 1.12.2 PvP loadout. Only the 9 hotbar slots are observable by the policy
+            // (features.py encodes exactly 9), so every combat-relevant item must live in 0-8.
             ItemStack pickaxe = new ItemStack(Material.DIAMOND_PICKAXE);
             pickaxe.addUnsafeEnchantment(Enchantment.DIG_SPEED, 5);
             inventory.setItem(1, pickaxe);
             inventory.setItem(2, new ItemStack(Material.OBSIDIAN, 64));
             inventory.setItem(3, new ItemStack(Material.END_CRYSTAL, 64));
             inventory.setItem(4, new ItemStack(Material.GOLDEN_APPLE, 16, (short) 0));
-            for (int slot = 5; slot <= 8; slot++) inventory.setItem(slot, new ItemStack(Material.TOTEM, 1));
+            ItemStack bow = new ItemStack(Material.BOW);
+            bow.addUnsafeEnchantment(Enchantment.ARROW_DAMAGE, 4);
+            bow.addUnsafeEnchantment(Enchantment.ARROW_INFINITE, 1);
+            inventory.setItem(5, bow);
+            inventory.setItem(6, new ItemStack(Material.ENDER_PEARL, 16));
+            inventory.setItem(7, new ItemStack(Material.TOTEM, 1));
+            inventory.setItem(8, new ItemStack(Material.TOTEM, 1));
             inventory.setItemInOffHand(new ItemStack(Material.TOTEM, 1));
+            // Infinity needs >=1 arrow present but never consumes it. Kept OUT of the hotbar so it
+            // does not occupy an observable slot; the offhand holds a totem, so this stack is the
+            // one the bow draws from.
+            inventory.setItem(9, new ItemStack(Material.ARROW, 1));
         }
         inventory.setHelmet(armor(Material.DIAMOND_HELMET));
         inventory.setChestplate(armor(Material.DIAMOND_CHESTPLATE));

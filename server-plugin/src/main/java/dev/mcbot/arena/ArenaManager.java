@@ -40,7 +40,7 @@ public final class ArenaManager {
 
     public ArenaManager(MCAIPlugin plugin, World world) {
         this.plugin = plugin;
-        this.maxConcurrentPairs = plugin.getConfig().getInt("max-concurrent-pairs", 2);
+        this.maxConcurrentPairs = Math.max(1, plugin.getConfig().getInt("max-concurrent-pairs", 2));
         this.timeoutSeconds = plugin.getConfig().getInt("match-timeout-seconds", 120);
         this.botPrefix = plugin.getConfig().getString("bot-name-prefix", "MCAI_");
         this.autoPair = plugin.getConfig().getBoolean("auto-pair-bots", true);
@@ -52,6 +52,9 @@ public final class ArenaManager {
             int z = (index / 4) * spacing;
             arenas.add(new Arena(this, "arena-" + (index + 1), new Location(world, x, 64, z)));
         }
+        // Now that the arenas exist, clamp exactly like set_max_pairs so an oversized config value
+        // cannot make pairWaitingBots spin until start() throws "no arena available" every tick.
+        this.maxConcurrentPairs = Math.min(arenas.size(), this.maxConcurrentPairs);
     }
 
     public void setControl(ControlServer control) {

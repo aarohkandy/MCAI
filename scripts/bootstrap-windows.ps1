@@ -72,7 +72,12 @@ if (-not (Test-Path $MavenExe)) {
     Expand-Archive -Path $Archive -DestinationPath (Join-Path $Root ".tools") -Force
 }
 & $MavenExe -q -f (Join-Path $Root "server-plugin\pom.xml") package
-Copy-Item (Join-Path $Root "server-plugin\target\mcai-arena-0.1.0.jar") (Join-Path $Plugins "MCAIArena.jar") -Force
+# Match the built jar by glob so a pom <version> bump does not silently break the copy. Prefer the
+# shaded artifact (mcai-arena-<version>.jar), excluding Maven's original-*.jar.
+$ArenaJar = Get-ChildItem (Join-Path $Root "server-plugin\target") -Filter "mcai-arena-*.jar" |
+    Where-Object { $_.Name -notlike "original-*.jar" } | Sort-Object Name | Select-Object -First 1
+if (-not $ArenaJar) { throw "No built mcai-arena jar found in server-plugin\target" }
+Copy-Item $ArenaJar.FullName (Join-Path $Plugins "MCAIArena.jar") -Force
 & $VenvPython (Join-Path $Root "scripts\configure_runtime.py") $Runtime --bind $BindAddress --bots $BotCount
 Set-Content -Path (Join-Path $Runtime "eula.txt") -Value "eula=true" -Encoding ASCII
 

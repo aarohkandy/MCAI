@@ -63,12 +63,12 @@ function Save-ProcessState {
 
 function Wait-LocalPort([int]$Port, [int]$Seconds) {
     for ($attempt = 0; $attempt -lt $Seconds; $attempt++) {
+        $client = [Net.Sockets.TcpClient]::new()
         try {
-            $client = [Net.Sockets.TcpClient]::new()
             $client.Connect("127.0.0.1", $Port)
-            $client.Dispose()
             return $true
         } catch { Start-Sleep -Seconds 1 }
+        finally { $client.Dispose() }
         if ($Processes | Where-Object { $_.Process.HasExited }) { return $false }
     }
     return $false
@@ -92,14 +92,19 @@ try {
     }
     $Processes += [pscustomobject]@{ Name = "trainer"; Process = Start-LoggedProcess "trainer" $Python $TrainerArgs (Join-Path $Root "trainer") }
     $Processes += [pscustomobject]@{ Name = "paper"; Process = Start-LoggedProcess "paper" $Java @("-Xms512M", "-Xmx$JavaMemory", "-jar", "paper-1.12.2.jar", "nogui") $Runtime }
-    $Processes += [pscustomobject]@{ Name = "dashboard"; Process = Start-LoggedProcess "dashboard" $Node @((Join-Path $Root "dashboard\server.mjs")) $Root }
+    # Pass the script path as a single pre-quoted argument: Start-Process joins array elements
+    # with spaces without quoting, so an unquoted path under e.g. "C:\Users\Jane Smith\..." would
+    # reach node as multiple tokens and fail to launch.
+    $DashboardScript = Join-Path $Root "dashboard\server.mjs"
+    $Processes += [pscustomobject]@{ Name = "dashboard"; Process = Start-LoggedProcess "dashboard" $Node "`"$DashboardScript`"" $Root }
 
     if (-not (Wait-LocalPort 8765 240)) { throw "The arena did not become ready. Check $RunDirectory\paper.error.log and paper.log." }
     $Mode = if ($env:MCAI_MODE) { $env:MCAI_MODE.ToLowerInvariant() } else { "sword" }
     if ($Mode -notin @("sword", "crystal", "combined")) { throw "MCAI_MODE must be sword, crystal, or combined." }
     & $Python (Join-Path $Root "scripts\arena_control.py") set_mode ('{"mode":"' + $Mode + '"}') | Out-Null
     & $Python (Join-Path $Root "scripts\arena_control.py") resume | Out-Null
-    $Processes += [pscustomobject]@{ Name = "worker"; Process = Start-LoggedProcess "worker" $Node @((Join-Path $Root "worker\dist\src\index.js")) (Join-Path $Root "worker") }
+    $WorkerScript = Join-Path $Root "worker\dist\src\index.js"
+    $Processes += [pscustomobject]@{ Name = "worker"; Process = Start-LoggedProcess "worker" $Node "`"$WorkerScript`"" (Join-Path $Root "worker") }
     Save-ProcessState
     if (Wait-LocalPort $DashboardPort 20) {
         $url = "http://127.0.0.1:$DashboardPort"

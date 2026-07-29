@@ -1,0 +1,29 @@
+# Headless MCAI training on a single Azure VM.
+# Run from this directory (deploy/azure). The repo is bind-mounted so `git pull` + `restart`
+# applies code changes; /data is a named volume that persists checkpoints, runs, and the
+# server runtime across restarts and rebuilds.
+services:
+  mcai:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mcai-trainer:latest
+    container_name: mcai
+    volumes:
+      - ../../:/app          # the repository (edit on host, restart to apply)
+      - mcai-data:/data      # checkpoints / runs / server-runtime / maven cache
+    ports:
+      # Dashboard bound to the VM's loopback only — reach it with an SSH tunnel, never public.
+      - "127.0.0.1:8788:8788"
+    environment:
+      # You must set MCAI_ACCEPT_EULA=true to accept the Minecraft EULA (see README).
+      MCAI_ACCEPT_EULA: "${MCAI_ACCEPT_EULA:-}"
+      MCAI_BOT_COUNT: "${MCAI_BOT_COUNT:-8}"
+      MCAI_MODE: "${MCAI_MODE:-sword}"
+      MCAI_ROLLOUT_STEPS: "${MCAI_ROLLOUT_STEPS:-8192}"
+      MCAI_JAVA_MEMORY: "${MCAI_JAVA_MEMORY:-4G}"
+      MCAI_TORCH_THREADS: "${MCAI_TORCH_THREADS:-0}"
+    stop_grace_period: 30s
+    restart: unless-stopped
+volumes:
+  mcai-data:

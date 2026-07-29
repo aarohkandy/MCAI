@@ -85,15 +85,19 @@ async function refreshArenaStatus() {
 }
 
 function readTail(file, maximum = 768 * 1024) {
+  let descriptor = null
   try {
     const stat = fs.statSync(file)
     const length = Math.min(stat.size, maximum)
-    const descriptor = fs.openSync(file, 'r')
+    descriptor = fs.openSync(file, 'r')
     const buffer = Buffer.alloc(length)
     fs.readSync(descriptor, buffer, 0, length, stat.size - length)
-    fs.closeSync(descriptor)
     return buffer.toString('utf8')
   } catch { return '' }
+  finally {
+    // Always release the fd; readSync throwing (EISDIR, races) must not leak it (called every 1s).
+    if (descriptor !== null) { try { fs.closeSync(descriptor) } catch { } }
+  }
 }
 
 function refreshTrainer() {

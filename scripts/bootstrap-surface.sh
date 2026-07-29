@@ -44,8 +44,20 @@ if [ ! -x "$MAVEN_HOME/bin/mvn" ]; then
 fi
 
 "$MAVEN_HOME/bin/mvn" -q -f "$ROOT/server-plugin/pom.xml" package
-cp "$ROOT/server-plugin/target/mcai-arena-0.1.0.jar" "$RUNTIME/plugins/MCAIArena.jar"
+# Match the built jar by glob so a pom <version> bump does not silently break the copy. Prefer the
+# shaded artifact (mcai-arena-<version>.jar), excluding Maven's original-*.jar.
+ARENA_JAR="$(find "$ROOT/server-plugin/target" -maxdepth 1 -name 'mcai-arena-*.jar' ! -name 'original-*.jar' | sort | head -n1)"
+if [ -z "$ARENA_JAR" ]; then echo "No built mcai-arena jar found in server-plugin/target" >&2; exit 1; fi
+cp "$ARENA_JAR" "$RUNTIME/plugins/MCAIArena.jar"
 python3 "$ROOT/scripts/configure_runtime.py" "$RUNTIME" --bind "$BIND_ADDRESS" --bots "$BOT_COUNT"
+
+# Paper will not start until the Minecraft EULA is accepted (the Windows launcher writes this after
+# the operator accepts). On this dev/WSL path, opt in explicitly with MCAI_ACCEPT_EULA=true.
+if [ "${MCAI_ACCEPT_EULA:-}" = "true" ]; then
+  echo "eula=true" > "$RUNTIME/eula.txt"
+elif [ ! -f "$RUNTIME/eula.txt" ]; then
+  echo "Note: set MCAI_ACCEPT_EULA=true to accept the Minecraft EULA before start-surface.sh (writes $RUNTIME/eula.txt)." >&2
+fi
 
 mkdir -p "$RUNTIME/plugins-disabled"
 find "$RUNTIME/plugins" -maxdepth 1 -iname 'AuthMe*.jar' -exec mv {} "$RUNTIME/plugins-disabled/" \;

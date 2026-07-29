@@ -67,6 +67,7 @@
     const observation = delayedObservation(currentObservation)
     if (state.recording) recordHumanAction(currentObservation, player)
     if (config.enabled) {
+      let driving = true
       if (state.flatPolicy) {
         const result = state.flatPolicy.step(observation)
         queuePolicyAction(result.action)
@@ -74,9 +75,16 @@
       } else {
         ensureBridge()
         if (state.connected && !state.pending) sendBridgeStep(observation)
+        // Fail safe: if the local bridge is down we have no fresh policy actions, so
+        // release every control instead of re-applying the last action forever.
+        driving = state.connected
       }
-      advanceActionQueue()
-      applyAction(player, state.currentAction)
+      if (driving) {
+        advanceActionQueue()
+        applyAction(player, state.currentAction)
+      } else {
+        releaseControls()
+      }
     } else {
       releaseControls()
     }
@@ -139,7 +147,10 @@
     for (const entity of javaList(corrected(API.world).loadedEntityList)) {
       if (!entity || referenceEquals(entity, player)) continue
       const kind = entityKind(entity)
-      if (!/(crystal|arrow|projectile|pearl|snowball|fireball|egg)/i.test(kind)) continue
+      // Keep the same combat-entity set as the training worker (observation.ts isCombatEntity).
+      // Including snowball/fireball/egg here would feed the policy entity slots it never saw
+      // during training.
+      if (!/(crystal|arrow|projectile|pearl)/i.test(kind)) continue
       const id = number(entity.entityId, number(call(entity, 'getEntityId'), -1))
       live.add(id)
       if (!state.entityBorn.has(id)) state.entityBorn.set(id, state.tick)
@@ -540,10 +551,13 @@
     }
   }
 
+  // Must stay byte-identical to knownKitEnchantHash in worker/src/items.ts: this value is a policy
+  // input, so any divergence is a train/inference mismatch.
   function knownKitEnchantHash(name) {
     let signature = ''
     if (name === 'diamond_sword') signature = 'knockback:1|sharpness:5'
     else if (name === 'diamond_pickaxe') signature = 'efficiency:5'
+    else if (name === 'bow') signature = 'power:4|infinity:1'
     else if (name.startsWith('diamond_') && /helmet|chestplate|leggings|boots/.test(name)) {
       signature = 'protection:4|unbreaking:3'
     }
@@ -614,8 +628,10 @@
   function offset(a, x, y, z) { return { x: a.x + x, y: a.y + y, z: a.z + z } }
   function distance(a, b) { return Math.hypot(a.x - number(b.x, 0), a.y - number(b.y, 0), a.z - number(b.z, 0)) }
   function egocentric(delta, yaw) {
+    // Must match worker/src/math.ts egocentric: R(+yaw) yields a yaw-invariant frame
+    // (forward -> (0,0,-1) at every yaw). Keep both implementations identical.
     const sine = Math.sin(yaw), cosine = Math.cos(yaw)
-    return { x: delta.x * cosine + delta.z * sine, y: delta.y, z: -delta.x * sine + delta.z * cosine }
+    return { x: delta.x * cosine - delta.z * sine, y: delta.y, z: delta.x * sine + delta.z * cosine }
   }
   function canSee(player, entity) { try { return bool(player.canEntityBeSeen(entity.getRef())) } catch (_) { return false } }
   function entityKind(entity) {

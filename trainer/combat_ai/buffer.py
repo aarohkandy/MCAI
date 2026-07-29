@@ -25,6 +25,10 @@ class Transition:
     reward: float
     done: bool
     next_value: float
+    # `done` marks an episode boundary (used for sequence splitting and GRU reset). `terminated`
+    # marks a *true* terminal (death/win) where the value bootstrap must be zeroed. A time-limit
+    # truncation is `done` but not `terminated`, so it still bootstraps from next_value.
+    terminated: bool = False
     advantage: float = 0.0
     return_value: float = 0.0
 
@@ -188,9 +192,13 @@ def actions_at(actions: ActionTensor, time_index: int) -> ActionTensor:
 def _calculate_advantages(group: list[Transition], gamma: float, gae_lambda: float) -> None:
     following_advantage = 0.0
     for transition in reversed(group):
-        non_terminal = 0.0 if transition.done else 1.0
-        delta = transition.reward + gamma * transition.next_value * non_terminal - transition.old_value
-        transition.advantage = delta + gamma * gae_lambda * non_terminal * following_advantage
+        # Zero the value bootstrap only on a true terminal; a truncation keeps next_value so the
+        # time limit is not mistaught as "zero future value".
+        bootstrap = 0.0 if transition.terminated else 1.0
+        # Cut the advantage recurrence at any episode boundary (terminal or truncation).
+        propagate = 0.0 if transition.done else 1.0
+        delta = transition.reward + gamma * transition.next_value * bootstrap - transition.old_value
+        transition.advantage = delta + gamma * gae_lambda * propagate * following_advantage
         transition.return_value = transition.advantage + transition.old_value
         following_advantage = transition.advantage
 

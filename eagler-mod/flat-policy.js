@@ -178,11 +178,14 @@
   }
 
   function encodeEntity(state, output) {
-    const kind = String(state.kind || '').toLowerCase()
+    // Match features.py: the one-hot lowercases, but the hash feature is taken over the
+    // raw kind string so the two encoders agree for any casing of the observation.
+    const rawKind = String(state.kind || '')
+    const kind = rawKind.toLowerCase()
     const values = [
       ...['end_crystal', 'arrow', 'snowball', 'egg', 'fireball'].map(name => bool(kind.includes(name))),
       ...vector(state.relative_position, 12), ...vector(state.relative_velocity, 2),
-      scale(state.age_ticks, 200), scale(state.distance, 12), bool(state.raycastable), hashFeature(kind)
+      scale(state.age_ticks, 200), scale(state.distance, 12), bool(state.raycastable), hashFeature(rawKind)
     ]
     write(output, values)
   }
@@ -217,7 +220,10 @@
     return [
       bool(name), scale(value.count, 64), number(value.durability) / maximum,
       scale(value.max_durability, 2000), hashFeature(name),
-      (number(value.enchant_hash) % 104729) / 104729
+      // Floored modulo to match Python's `%` (features.py). enchant_hash is a signed
+      // 32-bit value, and JS `%` keeps the dividend's sign, so a bare `%` would send
+      // enchanted-kit items a feature ~1.0 off from what the policy trained on.
+      (((number(value.enchant_hash) % 104729) + 104729) % 104729) / 104729
     ]
   }
 

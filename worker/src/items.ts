@@ -22,10 +22,13 @@ export function itemState(item: any): ItemState {
   }
 }
 
+// Must stay byte-identical to the copy in eagler-mod/mcai.mod.js: this value is a policy input,
+// so any divergence is a train/inference mismatch.
 export function knownKitEnchantHash(name: string): number {
   let signature = ''
   if (name === 'diamond_sword') signature = 'knockback:1|sharpness:5'
   else if (name === 'diamond_pickaxe') signature = 'efficiency:5'
+  else if (name === 'bow') signature = 'power:4|infinity:1'
   else if (name.startsWith('diamond_') && /helmet|chestplate|leggings|boots/.test(name)) {
     signature = 'protection:4|unbreaking:3'
   }

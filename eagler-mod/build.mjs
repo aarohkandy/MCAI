@@ -9,5 +9,8 @@ const runtime = await readFile(resolve(directory, 'flat-policy.js'), 'utf8')
 const coordinates = await readFile(resolve(directory, 'coordinate-contract.js'), 'utf8')
 const adapter = await readFile(resolve(directory, 'mcai.mod.js'), 'utf8')
 await mkdir(dirname(output), { recursive: true })
-await writeFile(output, `${banner}${runtime}\n${coordinates}\n${adapter}\n`, 'utf8')
+// Each source is a self-invoking IIFE with no trailing semicolon. Joining with a
+// bare newline makes `(iife)(arg)\n(iife)(arg)` parse as a single chained call and
+// throws on load, so separate the units with explicit statement terminators.
+await writeFile(output, `${banner}${runtime}\n;${coordinates}\n;${adapter}\n`, 'utf8')
 console.log(output)

@@ -6,6 +6,7 @@
 !.env.*.example
 config.windows.ps1
 .venv/
+.venv-trainer/
 __pycache__/
 .pytest_cache/
 *.py[cod]

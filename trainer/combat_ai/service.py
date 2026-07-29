@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import random
 import signal
 from dataclasses import dataclass
 from pathlib import Path
@@ -51,6 +52,8 @@ class PolicyService:
             torch.set_num_threads(max(1, (os.cpu_count() or 2) // 2))
         torch.manual_seed(service_config.seed)
         np.random.seed(service_config.seed)
+        # Also seed stdlib random so the imitation-replay batch sampling is reproducible.
+        random.seed(service_config.seed)
         self.config = ppo_config
         self.service_config = service_config
         self.device = choose_device()
@@ -169,17 +172,28 @@ class PolicyService:
         pending = self.pending.pop(agent_id, None)
         if pending is None:
             return
-        done = bool(step.get("terminated") or step.get("truncated"))
+        terminated = bool(step.get("terminated"))
+        truncated = bool(step.get("truncated"))
+        reward = float(step.get("reward", 0.0))
+        boundary_terminal = terminated or truncated
         episode_id = str(step["observation"]["match"]["episode_id"])
         if episode_id != pending.episode_id:
-            done = True
+            # A new episode began without an explicit terminal on the boundary step. The current
+            # step's reward and value belong to the new episode, so close the old transition as a
+            # hard terminal (no bootstrap) and do not leak the new episode's reward into it.
+            terminated = True
+            truncated = False
+            reward = 0.0
+        done = terminated or truncated
         self.buffer.append(Transition(
             agent_id=agent_id, episode_id=pending.episode_id, policy_version=pending.policy_version,
             features=pending.features, hidden=pending.hidden,
             categorical_action=pending.categorical_action, camera_action=pending.camera_action,
             old_log_probability=pending.log_probability, old_value=pending.value,
-            reward=float(step.get("reward", 0.0)), done=done,
-            next_value=0.0 if done else bootstrap_value,
+            reward=reward, done=done, terminated=terminated,
+            # Truncation (time limit) still bootstraps from the next state's value; only a true
+            # terminal zeroes it.
+            next_value=0.0 if terminated else bootstrap_value,
         ))
         if len(self.buffer) >= self.next_progress_tick and not self.buffer.ready:
             print(json.dumps({"event": "rollout_progress", "policy_version": self.state.policy_version,
@@ -187,10 +201,12 @@ class PolicyService:
                               "target_agent_ticks": self.config.rollout_agent_ticks,
                               "total_agent_ticks": self.state.total_agent_ticks}), flush=True)
             self.next_progress_tick += self.progress_interval
-        if done:
+        if boundary_terminal:
+            # Only record a league result for a real terminal from this step; a synthetic
+            # episode-change boundary carries the next episode's reward/outcome, not this one's.
             info = step.get("info") if isinstance(step.get("info"), dict) else {}
             self.league.record_result(
-                pending.episode_id, agent_id, float(step.get("reward", 0.0)), info.get("outcome")
+                pending.episode_id, agent_id, reward, info.get("outcome")
             )
 
     def _train_update(self) -> None:

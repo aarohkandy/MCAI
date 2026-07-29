@@ -29,6 +29,54 @@ def update_properties(path: Path, updates: dict[str, str]) -> None:
     path.write_text("\n".join(output) + "\n", encoding="utf-8")
 
 
+BUKKIT_LIMITS = {
+    "spawn-limits": {"monsters": "0", "animals": "0", "water-animals": "0", "ambient": "0"},
+    "ticks-per": {"animal-spawns": "-1", "monster-spawns": "-1"},
+}
+
+
+def _write_bukkit_limits(path: Path) -> None:
+    """Belt-and-braces mob suppression. server.properties already disables natural spawning; these
+    per-category limits stop anything that slips through from accumulating AI-ticking entities.
+
+    The server writes its own bukkit.yml on first boot, so this MERGES into an existing file
+    (rewriting only the keys we own) instead of skipping it."""
+    if not path.exists():
+        lines = ["spawn-limits:", "  monsters: 70", "  animals: 15",
+                 "  water-animals: 5", "  ambient: 15",
+                 "ticks-per:", "  animal-spawns: 400", "  monster-spawns: 1"]
+    else:
+        lines = path.read_text(encoding="utf-8").splitlines()
+
+    section: str | None = None
+    output: list[str] = []
+    seen: dict[str, set[str]] = {name: set() for name in BUKKIT_LIMITS}
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not line.startswith((" ", "\t")) and stripped.endswith(":"):
+            section = stripped[:-1]
+        elif section in BUKKIT_LIMITS and ":" in stripped and not stripped.startswith("#"):
+            key = stripped.split(":", 1)[0].strip()
+            if key in BUKKIT_LIMITS[section]:
+                seen[section].add(key)
+                output.append(f"  {key}: {BUKKIT_LIMITS[section][key]}")
+                continue
+        output.append(line)
+
+    for name, values in BUKKIT_LIMITS.items():
+        missing = [k for k in values if k not in seen[name]]
+        if not missing:
+            continue
+        if any(line.strip() == f"{name}:" for line in output):
+            index = next(i for i, line in enumerate(output) if line.strip() == f"{name}:")
+            for offset, key in enumerate(missing, start=1):
+                output.insert(index + offset, f"  {key}: {values[key]}")
+        else:
+            output.append(f"{name}:")
+            output.extend(f"  {key}: {values[key]}" for key in missing)
+    path.write_text("\n".join(output) + "\n", encoding="utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("runtime", type=Path)
@@ -43,9 +91,23 @@ def main() -> None:
         "online-mode": "false",
         "white-list": "true",
         "spawn-protection": "0",
-        "view-distance": "8",
+        "view-distance": "6",
         "max-players": str(max(12, arguments.bots + 4)),
+        # Every CPU cycle spent on vanilla world simulation is a cycle not spent on arenas.
+        # Mob AI is also actively dangerous here: passive mobs in the unused default world
+        # run PathfinderGoalRandomStroll, which force-loads chunks and can stall the main
+        # thread past Paper's 60s watchdog, killing the server mid-training.
+        "spawn-animals": "false",
+        "spawn-monsters": "false",
+        "spawn-npcs": "false",
+        "generate-structures": "false",
+        "level-type": "FLAT",
+        "allow-nether": "false",
+        "enable-command-block": "false",
+        "announce-player-achievements": "false",
+        "difficulty": "2",
     })
+    _write_bukkit_limits(runtime / "bukkit.yml")
     names = [f"{arguments.prefix}{index:03d}" for index in range(1, arguments.bots + 1)]
     names.append(f"{arguments.prefix}BROWSER")
     names.append("AIWatcher")

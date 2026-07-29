@@ -21,14 +21,22 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.projectiles.ProjectileSource;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
 public final class CombatListener implements Listener {
+    private static final int MAX_TRACKED_CRYSTALS = 512;
     private final MCAIPlugin plugin;
     private final ArenaManager manager;
-    private final Map<UUID, UUID> crystalOwners = new HashMap<UUID, UUID>();
+    // Bounded LRU: crystals cleared at match reset (rather than damaged/exploded) never trigger the
+    // scheduled removal, so an unbounded map would grow across a long training run.
+    private final Map<UUID, UUID> crystalOwners = new LinkedHashMap<UUID, UUID>(64, 0.75f, false) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<UUID, UUID> eldest) {
+            return size() > MAX_TRACKED_CRYSTALS;
+        }
+    };
 
     public CombatListener(MCAIPlugin plugin, ArenaManager manager) {
         this.plugin = plugin;
