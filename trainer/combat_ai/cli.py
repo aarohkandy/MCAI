@@ -12,6 +12,7 @@ from .browser_bridge import serve_browser_bridge
 from .curriculum import CurriculumState
 from .export import export_flat_weights, export_onnx, load_policy
 from .imitation import behavior_clone
+from .introspect import run_cli as run_introspection
 from .league import LeagueManager
 from .model import CombatPolicy
 from .ppo import choose_device
@@ -58,6 +59,13 @@ def main() -> None:
     promote = subparsers.add_parser("promote-exploiter", help="atomically add an exploiter to the main frozen pool")
     promote.add_argument("checkpoint", type=Path)
     promote.add_argument("--checkpoints", type=Path, default=Path("checkpoints"))
+    inspect = subparsers.add_parser("introspect", help="report activation, memory, saliency and behaviour health")
+    # Optional so the tooling can be run before the first checkpoint exists;
+    # omitting it introspects a freshly initialised policy as the baseline.
+    inspect.add_argument("checkpoint", type=Path, nargs="?",
+                         help="checkpoint to analyse; omit for a randomly initialised policy")
+    inspect.add_argument("--compare", type=Path, help="earlier checkpoint to diff weights and head shift against")
+    inspect.add_argument("--json", action="store_true", help="emit the machine-readable report the dashboard consumes")
     arguments = parser.parse_args()
     if arguments.command == "serve":
         ppo = PPOConfig(rollout_agent_ticks=arguments.rollout_steps)
@@ -96,6 +104,8 @@ def main() -> None:
         league_state = LeagueManager(arguments.checkpoints, torch.device("cpu"))
         requested = league_state.note_evaluation(arguments.held_out_elo)
         print(json.dumps({"held_out_elo": arguments.held_out_elo, "exploiter_requested": requested}))
+    elif arguments.command == "introspect":
+        print(run_introspection(arguments.checkpoint, arguments.compare, arguments.json))
     elif arguments.command == "promote-exploiter":
         league_state = LeagueManager(arguments.checkpoints, torch.device("cpu"))
         destination = league_state.add_frozen_checkpoint(arguments.checkpoint)
