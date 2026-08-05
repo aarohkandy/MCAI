@@ -52,6 +52,25 @@ print(f"[entrypoint] installed {download['name']} (build {builds[0]['id']})")
 PY
 fi
 
+# EaglerXServer lets Eaglercraft browser clients connect to this same Paper instance, so the bots
+# train on exactly the server a human will later fight on and any bridge quirk surfaces during
+# training rather than at the end. Set MCAI_EAGLER=false to skip.
+if [ "${MCAI_EAGLER:-true}" = "true" ] && [ ! -f "$RUNTIME/plugins/EaglerXServer.jar" ]; then
+  echo "[entrypoint] installing EaglerXServer (browser client bridge)..."
+  RUNTIME="$RUNTIME" MCAI_EAGLER_TAG="${MCAI_EAGLER_TAG:-}" python3 - <<'EAGLER_EOF' \
+    || echo "[entrypoint] WARNING: EaglerXServer install failed; browser clients cannot connect (training is unaffected)"
+import json, os, pathlib, urllib.request
+tag = os.environ.get("MCAI_EAGLER_TAG") or ""
+api = "https://api.github.com/repos/lax1dude/eaglerxserver/releases/" + (("tags/" + tag) if tag else "latest")
+def get(url):
+    return urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "mcai-setup"}))
+release = json.load(get(api))
+asset = next(a for a in release["assets"] if a["name"] == "EaglerXServer.jar")
+pathlib.Path(os.environ["RUNTIME"], "plugins", "EaglerXServer.jar").write_bytes(get(asset["browser_download_url"]).read())
+print("[entrypoint] installed EaglerXServer " + release["tag_name"])
+EAGLER_EOF
+fi
+
 # Minecraft EULA: headless servers require explicit acceptance by the operator.
 if [ "${MCAI_ACCEPT_EULA:-}" = "true" ]; then
   echo "eula=true" > "$RUNTIME/eula.txt"
@@ -61,7 +80,11 @@ elif [ ! -f "$RUNTIME/eula.txt" ]; then
 fi
 
 echo "[entrypoint] configuring server.properties + whitelist for $BOTS bots..."
-python3 scripts/configure_runtime.py "$RUNTIME" --bind 127.0.0.1 --bots "$BOTS"
+# Bind 0.0.0.0 INSIDE the container. The container has its own network namespace, so a 127.0.0.1
+# bind is unreachable through Docker's port forward - you could never attach a Minecraft or
+# Eaglercraft client to watch the fights. This stays private because compose publishes the port
+# only to the HOST's 127.0.0.1, and the VM firewall allows nothing but SSH.
+python3 scripts/configure_runtime.py "$RUNTIME" --bind 0.0.0.0 --bots "$BOTS"
 
 # Write the arena plugin config, mirroring scripts/bootstrap-windows.ps1. Without this the plugin
 # keeps its bundled default of 2 concurrent pairs no matter how large the VM is, so most of the

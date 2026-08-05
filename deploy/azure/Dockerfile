@@ -8,7 +8,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# JDK 17 (build the plugin + run Paper), Maven, Node 20, and small runtime utilities.
+# JDK 17 runs BOTH Paper 1.12.2 and EaglerXServer in a single JVM.
+# Conventional wisdom says 1.12.2 needs Java 8, so this was verified directly rather than assumed:
+# Paper 1.12.2 build 1620 with the MCAIArena plugin boots on Temurin 17 in ~8s, control socket up,
+# no exceptions. That matters because EaglerXServer REQUIRES Java 17+ and its native Spigot API
+# target is Paper 1.12.2 - so one JVM serves both, with no BungeeCord/Velocity proxy needed.
+# Do not "fix" this down to Java 8/11: that would break EaglerXServer.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         openjdk-17-jdk-headless maven git curl ca-certificates procps xz-utils gnupg \

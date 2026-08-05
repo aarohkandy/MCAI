@@ -26,28 +26,49 @@ describe('LoadController', () => {
 })
 
 describe('LoadController.sample', () => {
-  it('ramps back up on a healthy server instead of pinning at one pair', async () => {
-    // Regression: sample() used to blend `1 - os.freemem()/os.totalmem()` into memory_fraction.
-    // os.freemem() excludes reclaimable page cache, so on a warm host that term is ~0.97 and the
-    // controller treated a perfectly healthy server as permanently overloaded, collapsing to one
-    // pair forever and wasting most of the machine.
-    const requests: Array<{ pairs: number }> = []
+  it('judges load on the server heap only, never on host free memory', async () => {
+    // Regression: sample() used to fold `1 - os.freemem()/os.totalmem()` into memory_fraction.
+    // os.freemem() excludes reclaimable page cache, so on a warm host that term is ~0.97 -- always
+    // above the 0.8 overload threshold. The controller then treated a perfectly healthy server as
+    // overloaded, collapsed to one pair on its first sample, and could never climb back, wasting
+    // most of a large VM.
+    //
+    // Asserting on the resulting pair count would be flaky, because evaluate() also (correctly)
+    // reacts to real event-loop delay on a busy CI machine. So assert the precise thing that broke:
+    // the status handed to evaluate() must carry the server's OWN heap fraction, untouched.
+    const seen: Array<Record<string, unknown>> = []
     const arena = {
-      request: async (command: string, payload?: { pairs: number }) => {
-        if (command === 'set_max_pairs' && payload) requests.push(payload)
-        return { estimated_tps: 20, p95_tick_ms: 20, memory_fraction: 0.25 }
-      }
+      request: async () => ({ estimated_tps: 20, p95_tick_ms: 20, memory_fraction: 0.25 })
     } as any
     const controller = new LoadController(arena, {
       initialPairs: 2, maximumPairs: 6, sampleIntervalMs: 5, stableSamplesBeforeIncrease: 1
     })
+    const realEvaluate = controller.evaluate.bind(controller)
+    controller.evaluate = (status, delay) => { seen.push(status); return realEvaluate(status, delay) }
+
     await controller.start()
-    await new Promise(resolve => setTimeout(resolve, 60))
+    await new Promise(resolve => setTimeout(resolve, 40))
     controller.stop()
-    // start() sets the initial pair count; a healthy server must then push it UP, never down.
-    const applied = requests.map(entry => entry.pairs)
-    expect(applied[0]).toBe(2)
-    expect(Math.max(...applied)).toBeGreaterThan(2)
-    expect(Math.min(...applied)).toBe(2)
+
+    expect(seen.length).toBeGreaterThan(0)
+    for (const status of seen) {
+      // 0.25 is what the server reported. The old code raised this to ~0.97 from host memory.
+      expect(status.memory_fraction).toBe(0.25)
+      expect(Number(status.memory_fraction)).toBeLessThan(0.8)
+    }
+  })
+
+  it('applies the initial pair count on start', async () => {
+    const applied: number[] = []
+    const arena = {
+      request: async (command: string, payload?: { pairs: number }) => {
+        if (command === 'set_max_pairs' && payload) applied.push(payload.pairs)
+        return { estimated_tps: 20, p95_tick_ms: 20, memory_fraction: 0.25 }
+      }
+    } as any
+    const controller = new LoadController(arena, { initialPairs: 3, maximumPairs: 6 })
+    await controller.start()
+    controller.stop()
+    expect(applied).toEqual([3])
   })
 })

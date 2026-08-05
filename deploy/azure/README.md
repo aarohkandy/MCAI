@@ -92,22 +92,20 @@ MCAI VM, disk, and every checkpoint** along with it. Keep MCAI in its own resour
 - A one-time **quota bump** if you pick 16+ vCPUs (see step 2).
 - Your explicit **Minecraft EULA acceptance** — you set `MCAI_ACCEPT_EULA=true` (step 4). I won't
   accept it for you.
-- **The fixed code on the VM.** The bug fixes are currently *local, uncommitted* changes. To get
-  them onto the VM you either (a) commit + push them to your GitHub and `git clone` on the VM, or
-  (b) `scp`/`rsync` this folder up. Ask me to prepare the commit — I can commit locally on a branch;
-  pushing needs your GitHub auth.
+- Nothing for the code — it is committed and pushed to the `fix/verified-training-stack` branch, so
+  the VM just clones it.
 
 ## 2. Pick a size — and strongly consider Spot
 Pay-as-you-go vs **Spot** (Spot is what your R_SIM runbook uses; 70–90% cheaper):
 
 | SKU | vCPU / RAM | ~$/hr PAYG | ~$/hr Spot | hours in $100 (Spot) |
 |-----|-----------|-----------|-----------|----------------------|
-| `Standard_F8s_v2`  | 8 / 16 GB  | ~$0.34 | ~$0.07–0.15 | ~660–1,400 |
-| `Standard_F16s_v2` | 16 / 32 GB | ~$0.68 | ~$0.15–0.30 | ~330–660 |
-| `Standard_F32s_v2` | 32 / 64 GB | ~$1.35 | ~$0.30–0.60 | ~165–330 |
+| `Standard_F8s_v2`  | 8 / 16 GB  | $0.338 | **$0.178** | ~535 |
+| `Standard_F16s_v2` | 16 / 32 GB | $0.677 | **$0.356** | ~267 |
+| `Standard_F32s_v2` | 32 / 64 GB | $1.353 | **$0.712** | ~133 |
 
-Spot rates above are indicative only — **they float by region and time, and can approach PAYG
-under demand.** Check the live rate before committing:
+Rates verified from the Azure retail pricing API (eastus2, 2026-08-04); hours assume $100 minus a
+64 GB StandardSSD (~$5/mo). Spot still floats with demand — re-check before committing:
 ```bash
 az vm list-skus -l eastus2 --size Standard_F --query "[?name=='Standard_F16s_v2'].name" -o tsv
 # Live Spot price (no auth needed):
@@ -118,8 +116,8 @@ curl -s "https://prices.azure.com/api/retail/prices?\$filter=armRegionName%20eq%
 16 vCPU comfortably runs ~4 arena pairs (8 bots). F32 is tempting but at $100 the extra throughput
 mostly buys you a shorter calendar window, and eviction risk rises with the larger SKU.
 
-> **$100 reality:** at ~$0.20/hr Spot that is ~500 hours ≈ 20 days of continuous training, minus
-> the disk (below). Budget for ~2 weeks of runtime, not a month.
+> **$100 reality:** F16s_v2 Spot at the verified $0.356/hr is about **267 hours ≈ 11 days** of
+> continuous training. Plan for ~1.5 weeks, not a month.
 
 **The Spot tradeoff, honestly:** Azure can **evict** the VM at any time when it needs capacity.
 R_SIM tolerates this because its runs are 10–30 minutes. MCAI training runs for days, so you *will*
@@ -199,6 +197,33 @@ docker compose logs -f     # watch it come up; look for "MCAI is running"
 ```
 Tune `MCAI_BOT_COUNT` to the box (~8 on 16 vCPU, ~16 on 32 vCPU) and start in `sword` mode — only
 move to `crystal`/`combined` after sword is competent.
+
+## 4b. Survive Spot eviction without your laptop (do this)
+Azure does not restart an evicted Spot VM, and a watchdog on your own machine is useless when it is
+closed. Install the Azure-side one instead — it runs in Azure, free tier, scoped to this one VM:
+```bash
+./deploy/azure/eviction-autorestart.sh --resource-group mcai-rg --vm mcai-train
+```
+Worst case you lose one check interval (default 15 min) per eviction; training resumes from
+`checkpoints/latest.pt`.
+
+## 4c. Watch the fights in a real Minecraft client
+The container now publishes Minecraft on the host loopback and installs **EaglerXServer**, so the
+bots train on the same server a browser client connects to. From your own machine:
+```bash
+./scripts/watch-fights.sh --host <public-ip>
+```
+Then connect a 1.12.2 client to `127.0.0.1:25565` as **AIWatcher** and run `/aiwatch arena-1 orbit`
+(or `pov`), `/ainext` to cycle arenas. Rendering happens on YOUR machine, which is precisely why a
+GPU-less VM is not a limitation. See [docs/SPECTATING.md](../../docs/SPECTATING.md).
+
+## 4d. Check it is actually learning
+```bash
+docker compose exec mcai python -m combat_ai.cli introspect /data/checkpoints/latest.pt
+```
+Reports tanh saturation (gradient-dead units), GRU memory use, which observation fields drive each
+decision, per-head entropy vs maximum, and behavioural probes. Run it on day one for a baseline —
+it works on an untrained policy — then watch the probe signals turn positive.
 
 ## 5. Watch the dashboard (SSH tunnel — never exposed publicly)
 From your machine:
