@@ -1,0 +1,29 @@
+# Overrides for running MCAI on the shared "homebase" box (8 vCPU / 32 GB, Ubuntu 24.04).
+#
+# Usage (from deploy/azure/):
+#   docker compose -f docker-compose.yml -f docker-compose.homebase.yml up --abort-on-container-exit
+#
+# Two things differ from the dedicated-VM setup:
+#
+# 1. restart: "no". On a dedicated VM `restart: unless-stopped` is right. Here the broker supervises
+#    the job as a systemd unit and owns restarts itself (restart_policy=rerun), so a container-level
+#    restart loop would fight it: the broker would see a process that never exits, could not capture
+#    an exit code, and a crash-looping stack would silently burn a reservation. Let it exit and let
+#    the broker decide.
+#
+# 2. Sized for 8 shared vCPU, not 16 dedicated. ~1 arena pair per 4 vCPU means 2 pairs / 4 bots.
+#    Asking for more would just push Paper's TPS down, and TPS below ~19 makes the observations the
+#    policy trains on laggy and wrong - more bots would produce WORSE data, not more of it.
+services:
+  mcai:
+    restart: "no"
+    # Ceiling just under the broker reservation so a leak is contained by Docker rather than by the
+    # kernel OOM killer picking the largest process on a shared box (which would be someone else's).
+    mem_limit: 11g
+    cpus: 7.0
+    environment:
+      MCAI_BOT_COUNT: "${MCAI_BOT_COUNT:-4}"
+      MCAI_MAX_PAIRS: "${MCAI_MAX_PAIRS:-2}"
+      MCAI_JAVA_MEMORY: "${MCAI_JAVA_MEMORY:-4G}"
+      # Leave headroom for Paper: the trainer must not take every core or TPS collapses.
+      MCAI_TORCH_THREADS: "${MCAI_TORCH_THREADS:-3}"
